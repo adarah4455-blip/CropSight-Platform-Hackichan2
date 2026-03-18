@@ -1,0 +1,8 @@
+streamlit
+opencv-python-headless
+Pillow
+fpdf2
+pandas
+folium
+streamlit-folium
+numpy
