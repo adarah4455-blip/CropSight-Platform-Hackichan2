@@ -9,9 +9,12 @@ from fpdf import FPDF
 import time
 import tempfile
 import folium
+from folium.plugins import Draw
 from streamlit_folium import st_folium
 import os
 import base64
+import requests
+import datetime
 
 # --- Default Page Config ---
 st.set_page_config(
@@ -260,6 +263,128 @@ def generate_tips(overall_score, zones_df):
         
     return tips
 
+def get_ai_diagnosis(crop_type, overall_score, zones_df):
+    """
+    Simulated AI Engine that identifies potential pathogens and diseases 
+    based on crop type and detected stress patterns.
+    """
+    severities = zones_df['Severity'].tolist()
+    has_severe = "Severe Stress" in severities
+    has_moderate = "Moderate Stress" in severities
+    
+    # Diagnosis Logic based on Crop Type and Stress
+    diagnosis_map = {
+        "Rice": {
+            "Severe Stress": ("Potentially Rice Blast (Fungal)", "Apply Tricyclazole or Azoxystrobin fungicide immediately. Ensure field drainage to prevent further spore spread."),
+            "Moderate Stress": ("Potentially Brown Spot or Stem Rot", "Check for brown lesions on leaves. Apply potassium-rich fertilizer and ensure uniform water distribution.")
+        },
+        "Wheat": {
+            "Severe Stress": ("Potentially Leaf Rust or Fusarium Blight", "Apply Propiconazole or Tebuconazole. Avoid overhead irrigation during humid periods."),
+            "Moderate Stress": ("Nitrogen Deficiency or Aphid Infestation", "Apply nitrogen-rich top dressing. Inspect for small pests on the underside of leaves.")
+        },
+        "Corn": {
+            "Severe Stress": ("Potentially Northern Leaf Blight (NLB)", "Apply Mancozeb or Chlorothalonil. Remove and destroy infected crop residue after harvest."),
+            "Moderate Stress": ("Drought Stress or Nutrient Mining", "Increase irrigation frequency. Conduct a soil test to check for phosphorus deficiency.")
+        },
+        "Sugarcane": {
+            "Severe Stress": ("Potentially Red Rot or Sugarcane Smut", "Infected stalks should be removed and burnt. Treat future sets with hot water (52°C for 30 mins)."),
+            "Moderate Stress": ("Iron or Zinc Chlorosis", "Apply foliar spray of 1% Ferrous sulphate or Zinc sulphate to restore greenness.")
+        },
+        "Other": {
+            "Severe Stress": ("Advanced Pathogen Infection / Root Decay", "Consult a local agronomist. High probability of soil-borne pathogens or major irrigation failure."),
+            "Moderate Stress": ("Environmental Stress / Early-stage Infection", "Monitor for 48 hours. Ensure consistent nutrient supply and check for visible leaf spotting.")
+        }
+    }
+
+    # Default if healthy
+    if overall_score > 85:
+        return "Normal Vigor", "No significant pathogens detected. Continue standard monitoring and maintenance schedule."
+
+    # Select Diagnosis
+    crop_data = diagnosis_map.get(crop_type, diagnosis_map["Other"])
+    if has_severe:
+        return crop_data["Severe Stress"]
+    elif has_moderate:
+        return crop_data["Moderate Stress"]
+    else:
+        return "Minor Seasonal Stress", "Crops are generally healthy but showing slight seasonal variation. Check for minor insect activity."
+
+@st.cache_data(ttl=3600)
+def fetch_sentinel_hub_image(client_id, client_secret, min_lon, min_lat, max_lon, max_lat):
+    """Query Sentinel Hub for 10m high-res imagery using Process API."""
+    try:
+        if not client_id or not client_secret:
+            return None, None
+
+        # 1. Get Access Token
+        token_url = "https://services.sentinel-hub.com/auth/realms/main/protocol/openid-connect/token"
+        token_data = {"grant_type": "client_credentials", "client_id": client_id, "client_secret": client_secret}
+        token_resp = requests.post(token_url, data=token_data, timeout=10)
+        token_resp.raise_for_status()
+        access_token = token_resp.json()["access_token"]
+
+        # 2. Process API Request
+        process_url = "https://services.sentinel-hub.com/api/v1/process"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+            "Accept": "image/jpeg"
+        }
+        
+        # Simple True Color Evalscript
+        evalscript = """
+        //VERSION=3
+        function setup() {
+          return {
+            input: ["B04", "B03", "B02"],
+            output: { bands: 3 }
+          };
+        }
+        function evaluatePixel(sample) {
+          return [2.5 * sample.B04, 2.5 * sample.B03, 2.5 * sample.B02];
+        }
+        """
+
+        # Set time range to last 6 months to ensure data exists
+        today = datetime.datetime.now()
+        start_date = (today - datetime.timedelta(days=180)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        end_date = today.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        payload = {
+            "input": {
+                "bounds": {
+                    "bbox": [min_lon, min_lat, max_lon, max_lat],
+                    "properties": {"crs": "http://www.opengis.net/def/crs/EPSG/0/4326"}
+                },
+                "data": [{
+                    "type": "sentinel-2-l2a",
+                    "dataFilter": {"timeRange": {"from": start_date, "to": end_date}}
+                }]
+            },
+            "output": {
+                "width": 1024,
+                "height": 1024,
+                "responses": [{"identifier": "default", "format": {"type": "image/jpeg"}}]
+            },
+            "evalscript": evalscript
+        }
+
+        resp = requests.post(process_url, json=payload, headers=headers, timeout=40)
+        resp.raise_for_status()
+
+        meta = {
+            "title": "Sentinel Hub High-Res Imagery",
+            "provider": "Copernicus / Sentinel Hub",
+            "platform": "Sentinel-2 Satellite",
+            "date": "Most Recent (Last 180 Days)",
+            "resolution": "10 meters/pixel",
+            "layer": "True Color (10m)"
+        }
+        return resp.content, meta
+    except Exception as e:
+        st.sidebar.error(f"Sentinel Hub Auth Error: {str(e)}")
+        return None, None
+
 def clean_for_pdf(text):
     text = str(text)
     replacements = {'🌟 ': '', '⚠️ ': '', '🚨 ': '', '💧 ': '', '🐛 ': '', '🔴': 'Red', '🟡': 'Yellow', '🟢': 'Green', '*': ''}
@@ -267,7 +392,7 @@ def clean_for_pdf(text):
         text = text.replace(k, v)
     return text.encode('latin-1', 'ignore').decode('latin-1')
 
-def create_pdf(farm_name, overall_score, original, overlay, zones_df, tips):
+def create_pdf(farm_name, overall_score, original, overlay, zones_df, tips, ai_diagnosis, ai_cure):
     pdf = FPDF(orientation='L', unit='mm', format='A4')
     pdf.add_page()
     pdf.set_font("Arial", 'B', 24)
@@ -278,6 +403,18 @@ def create_pdf(farm_name, overall_score, original, overlay, zones_df, tips):
     pdf.cell(0, 10, f"Overall Crop Health Score: {overall_score}/100", 0, 1, 'C')
     pdf.set_font("Arial", 'I', 12)
     pdf.cell(0, 8, clean_for_pdf(f"Farm/Field Name: {farm_name} | Date: {time.strftime('%Y-%m-%d')}"), 0, 1, 'C')
+    pdf.ln(5)
+    
+    # AI Diagnosis Section in PDF
+    pdf.set_font("Arial", 'B', 14)
+    pdf.set_fill_color(240, 240, 240)
+    pdf.cell(0, 10, "AI Pathogen & Stress Diagnostic Report", 0, 1, 'L', 1)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_text_color(231, 76, 60) # Red
+    pdf.cell(0, 8, f"Detected Condition: {clean_for_pdf(ai_diagnosis)}", 0, 1)
+    pdf.set_text_color(0, 0, 0) # Reset to black
+    pdf.set_font("Arial", 'I', 11)
+    pdf.multi_cell(0, 6, f"AI Recommended Cure: {clean_for_pdf(ai_cure)}", 0, 'L')
     pdf.ln(5)
     
     with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as f_orig, tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as f_over:
@@ -381,211 +518,333 @@ if not st.session_state.logged_in:
 with st.sidebar:
     st.markdown(f"### 👤 Profile")
     st.success(f"Logged in as:\n**{st.session_state.user_email}**")
+    
+    st.markdown("---")
+    st.markdown("### 🌾 Crop Configuration")
+    crop_options = ["Rice", "Wheat", "Corn", "Sugarcane", "Other"]
+    selected_crop = st.selectbox("Current Crop Type", options=crop_options, index=0, help="Helps the AI identify typical diseases for your crop.")
+    
+    st.markdown("---")
+    st.markdown("### 🛰️ Sentinel Hub Settings")
+    sh_client_id = st.text_input("Client ID", value="9014ff84-e5be-44a4-b866-caa7d576c8a0", type="password", key="sh_id_input", help="Get this from Sentinel Hub Dashboard")
+    sh_client_secret = st.text_input("Client Secret", value="zlnN8FTFmxBmEFt6bSkNQcGM4kBqciPx", type="password", key="sh_secret_input", help="Get this from Sentinel Hub Dashboard")
+    if not sh_client_id or not sh_client_secret:
+        st.info("💡 Enter your Sentinel Hub credentials to get 10m high-res imagery.")
+    
+    st.markdown("---")
     if st.button("Logout", use_container_width=True):
         st.session_state.logged_in = False
         st.session_state.user_email = ""
         st.rerun()
 
-st.markdown("""
+# --- Farm Session State Initialization ---
+if 'farmer_name' not in st.session_state or not st.session_state.farmer_name:
+    if 'user_email' in st.session_state and st.session_state.user_email:
+        # Extract part before @, replace dots/underscores with spaces, and capitalize
+        raw_name = st.session_state.user_email.split('@')[0]
+        st.session_state.farmer_name = raw_name.replace('.', ' ').replace('_', ' ').title()
+    else:
+        st.session_state.farmer_name = "Farmer"
+if 'farm_boundary' not in st.session_state:
+    st.session_state.farm_boundary = None  # list of [lat, lon] pairs
+if 'farm_confirmed' not in st.session_state:
+    st.session_state.farm_confirmed = False
+
+# ============================================================
+#  FARM SETUP SCREEN  (draw an area on the map)
+# ============================================================
+if not st.session_state.farm_confirmed:
+    st.markdown("""
+    <div class='header-box'>
+        <h1 class='main-header'>🌱 CropSight Platform</h1>
+        <h3 class='sub-header'>Set Up Your Farm to Get Started</h3>
+        <p><b>Draw a rectangle or polygon</b> on the map to mark your farm area.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col_setup1, col_setup2, col_setup3 = st.columns([1, 3, 1])
+    with col_setup2:
+        st.markdown(f"👨‍🌾 **Welcome, {st.session_state.farmer_name}!**")
+
+        st.markdown("#### 📍 Draw your farm boundary on the map")
+        st.caption("Use the rectangle ▭ or polygon ⬠ tool on the left side of the map to outline your farm area.")
+        default_lat, default_lon = 10.0, 76.3
+        setup_map = folium.Map(location=[default_lat, default_lon], zoom_start=7)
+        Draw(
+            export=False,
+            draw_options={
+                'polyline': False,
+                'circle': False,
+                'circlemarker': False,
+                'marker': False,
+                'polygon': True,
+                'rectangle': True,
+            },
+            edit_options={'edit': True, 'remove': True},
+        ).add_to(setup_map)
+        map_data = st_folium(setup_map, width="100%", height=450, key="farm_setup_map")
+
+        # Extract drawn boundary
+        drawn_boundary = None
+        if map_data and map_data.get("all_drawings"):
+            drawings = map_data["all_drawings"]
+            if len(drawings) > 0:
+                last_drawing = drawings[-1]  # use the most recent shape
+                geom = last_drawing.get("geometry", {})
+                if geom.get("type") in ("Polygon",) and geom.get("coordinates"):
+                    # GeoJSON coordinates are [lng, lat] – flip to [lat, lng]
+                    raw_coords = geom["coordinates"][0]
+                    drawn_boundary = [[c[1], c[0]] for c in raw_coords]
+
+        if drawn_boundary:
+            lats = [p[0] for p in drawn_boundary]
+            lons = [p[1] for p in drawn_boundary]
+            center_lat = sum(lats) / len(lats)
+            center_lon = sum(lons) / len(lons)
+            st.success(f"📌 Farm area selected — center at **({center_lat:.4f}, {center_lon:.4f})** with **{len(drawn_boundary)-1} vertices**")
+        else:
+            st.info("Draw a rectangle or polygon on the map to define your farm boundary.")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("✅ Confirm Farm Area & Analyse", use_container_width=True, key="confirm_farm_btn"):
+            if drawn_boundary:
+                # Name is already set in session state
+                st.session_state.farm_boundary = drawn_boundary
+                st.session_state.farm_confirmed = True
+                st.rerun()
+            else:
+                if not drawn_boundary:
+                    st.warning("Please draw a rectangle or polygon on the map to define your farm area.")
+
+    st.markdown("""
+    <div class='footer'>
+        Built for SDG 2 Zero Hunger – 24-hour hackathon 🚀 🌱 | <b>CropSight Platform</b>
+    </div>
+    """, unsafe_allow_html=True)
+    st.stop()
+
+# ============================================================
+#  MAIN DASHBOARD  (after farm area is confirmed)
+# ============================================================
+farmer_name = st.session_state.farmer_name
+farm_boundary = st.session_state.farm_boundary
+_lats = [p[0] for p in farm_boundary]
+_lons = [p[1] for p in farm_boundary]
+farm_lat = sum(_lats) / len(_lats)
+farm_lon = sum(_lons) / len(_lons)
+
+st.markdown(f"""
 <div class='header-box'>
     <h1 class='main-header'>🌱 CropSight Platform</h1>
-    <h3 class='sub-header'>Aerial Crop Health Intelligence – Act within the hour</h3>
-    <p>Upload any aerial photo of your field to get an instant colour-coded health map and personalized farmer actions.</p>
+    <h3 class='sub-header'>Welcome, {farmer_name} – Your Farm at ({farm_lat:.4f}, {farm_lon:.4f})</h3>
+    <p>Your selected farm area is being analysed for crop health.</p>
 </div>
 """, unsafe_allow_html=True)
 
-
-col1, col2, col3 = st.columns([1,3,1])
+# --- Optional: override with your own image ---
+col1, col2, col3 = st.columns([1, 3, 1])
 with col2:
-    tab1, tab2 = st.tabs(["📤 Upload Any Image", "👀 Live Demo Mode"])
-    uploaded_file = None
-    demo_mode = False
-    
-    with tab1:
-        uploaded_file = st.file_uploader("Upload Drone or Satellite Image (JPG, PNG)", type=["jpg", "png", "jpeg", "tif"])
-    with tab2:
-        st.info("No farm image right now? Test using our sample drone imagery.")
-        demo_path = os.path.join(os.path.dirname(__file__), "demo_images", "drone_farm_field.png")
-        if st.button("✨ Load Sample Drone Image ✨", key="demo_btn"):
-            demo_mode = True
+    with st.expander("📤 Upload your own drone/satellite image (optional)", expanded=False):
+        uploaded_file = st.file_uploader(
+            "Upload Drone/Satellite Image of This Farm",
+            type=["jpg", "png", "jpeg", "tif"],
+            label_visibility="collapsed",
+            key="main_upload"
+        )
+    with st.expander("🔄 Change Farm Area"):
+        if st.button("Reset Farm Setup", key="reset_farm_btn"):
+            st.session_state.farm_confirmed = False
+            st.session_state.farmer_name = ""
+            st.session_state.farm_boundary = None
+            st.rerun()
 
-if uploaded_file or demo_mode:
-    st.markdown("---")
-    
-    with st.spinner("Processing aerial imagery through spectral algorithms..."):
-        time.sleep(1) # Simulation delay
-        
-        try:
-            if demo_mode:
-                if os.path.exists(demo_path):
-                    with open(demo_path, "rb") as f:
-                        image_bytes = f.read()
-                else:
-                    st.error("Demo image not found. Please upload a real image.")
-                    st.stop()
+# --- Auto-analyse: OAM → uploaded image → demo fallback ---
+st.markdown("---")
+
+demo_path = os.path.join(os.path.dirname(__file__), "demo_images", "drone_farm_field.png")
+min_lon, max_lon = min(_lons), max(_lons)
+min_lat, max_lat = min(_lats), max(_lats)
+
+with st.spinner("🛰️ Fetching 10m high-res imagery from Sentinel Hub..."):
+    try:
+        image_bytes = None
+        sh_meta = None
+
+        # Priority 1: User-uploaded image
+        if uploaded_file:
+            image_bytes = uploaded_file.read()
+            st.info("✅ Using your uploaded drone/satellite image for analysis.")
+
+        # Priority 2: Fetch from Sentinel Hub
+        if image_bytes is None and sh_client_id and sh_client_secret:
+            sh_bytes, sh_meta = fetch_sentinel_hub_image(sh_client_id, sh_client_secret, min_lon, min_lat, max_lon, max_lat)
+            if sh_bytes:
+                image_bytes = sh_bytes
+                st.success("🛰️ **High-resolution imagery found on Sentinel Hub!**")
+                meta_col1, meta_col2, meta_col3 = st.columns(3)
+                with meta_col1:
+                    st.markdown(f"**📷 {sh_meta['title']}**")
+                with meta_col2:
+                    st.markdown(f"🏢 {sh_meta['provider']} · {sh_meta['platform']}")
+                with meta_col3:
+                    st.markdown(f"📅 {sh_meta['date']} · {sh_meta['resolution']}")
+
+        # Priority 3: Demo fallback
+        if image_bytes is None:
+            if not sh_client_id or not sh_client_secret:
+                st.warning("⚠️ Sentinel Hub credentials missing. Using demo imagery. [Get a free account here](https://www.sentinel-hub.com/) for 10m high-res data.")
             else:
-                image_bytes = uploaded_file.read()
+                st.warning("⚠️ No recent Sentinel Hub imagery found for this area. Using demo imagery.")
                 
-            orig_rgb, overlay_rgb, health_array, overall_score = analyze_image(image_bytes)
-            zones_df = find_zones(health_array)
-            farmer_tips = generate_tips(overall_score, zones_df)
-            
-            # --- Top Area: Metrics & Tips ---
-            col_score, col_tips = st.columns([1, 2])
-            with col_score:
-                st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-                st.metric("Overall Crop Health", f"{overall_score} / 100", delta="+12% from last week" if overall_score>50 else "-5% from last week")
-                if overall_score >= 70:
-                    st.success("Your crop is in good standing! 🌱")
-                elif overall_score >= 40:
-                    st.warning("Your crop shows moderate stress levels. ⚠️")
-                else:
-                    st.error("Your crop requires urgent attention. 🚨")
-                st.markdown("</div>", unsafe_allow_html=True)
-                
-            with col_tips:
-                with st.container():
-                    st.markdown("### 📋 Primary Action Guide")
-                    for tip in farmer_tips:
-                        st.markdown(tip)
-            
-            # --- Visual Health Maps ---
-            st.markdown("---")
-            st.markdown("### 🗺️ Visual Health Analysis")
-            st.markdown("""
+            if os.path.exists(demo_path):
+                with open(demo_path, "rb") as f:
+                    image_bytes = f.read()
+            else:
+                st.error("No imagery available. Please upload a drone image manually.")
+                st.stop()
+
+        orig_rgb, overlay_rgb, health_array, overall_score = analyze_image(image_bytes)
+        zones_df = find_zones(health_array)
+        farmer_tips = generate_tips(overall_score, zones_df)
+
+        # --- AI Disease Diagnosis ---
+        ai_diagnosis, ai_cure = get_ai_diagnosis(selected_crop, overall_score, zones_df)
+
+        st.markdown(f"""
+        <div class="diagnosis-card" style="border-left: 10px solid {'#e74c3c' if overall_score < 40 else '#f1c40f' if overall_score < 70 else '#2ecc71'}; background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 25px;">
+            <h2 style='margin-top:0; color: #2c3e50; font-family: "Outfit", sans-serif;'>🧬 AI Pathogen & Stress Diagnostic Report</h2>
+            <hr style='margin: 15px 0; border: none; border-top: 1px solid #eee;'>
+            <div style='display:flex; justify-content:space-between; align-items:flex-start; flex-wrap: wrap;'>
+                <div style='flex: 2; min-width: 300px;'>
+                    <p style='margin-bottom: 5px; font-weight: bold; color: #7f8c8d; text-transform: uppercase; font-size: 0.8em;'>Detected Condition</p>
+                    <p style='color:#e74c3c; font-size:1.6em; font-weight: bold; margin-bottom: 20px;'>{ai_diagnosis}</p>
+                    <p style='margin-bottom: 10px; font-weight: bold; color: #2c3e50;'>✨ AI Recommended Cure / Action Plan:</p>
+                    <div style='background:#f4f9f4; padding:20px; border-radius:12px; border:1px solid #e0ede0; color: #2d3436; line-height: 1.6;'>
+                        {ai_cure}
+                    </div>
+                </div>
+                <div style='flex: 1; min-width: 150px; text-align:center; background:#f8f9fa; padding:25px; border-radius:20px; margin-left:20px; display: flex; flex-direction: column; justify-content: center;'>
+                     <p style='margin:0; font-size:0.9em; font-weight: bold; color: #95a5a6;'>CROP HEALTH SCORE</p>
+                     <h1 style='margin:10px 0; font-size:4.5em; color:{"#e74c3c" if overall_score < 40 else "#f1c40f" if overall_score < 70 else "#2ecc71"}; font-family: "Outfit", sans-serif;'>{overall_score}</h1>
+                     <p style='margin:0; font-size:0.9em; color:{"#e74c3c" if overall_score < 40 else "#27ae60"}; font-weight: bold;'>
+                        {"↑ +12% improvement" if overall_score > 50 else "↓ -5% decline"}
+                     </p>
+                </div>
+            </div>
+            <div style='margin-top: 25px; padding-top: 15px; border-top: 1px solid #f0f0f0;'>
+                <p style='margin:0; color: #bdc3c7; font-size: 0.85em;'><b>Disclaimer:</b> AI diagnosis is based on remote sensing spectral patterns. Ground-truth verification by an agronomist is recommended for critical decisions.</p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # --- Visual Health Maps (Side-by-Side) ---
+        st.markdown("---")
+        st.markdown("### 🗺️ Visual Health Analysis")
+        st.markdown("""
 <div style='margin-bottom: 20px;'>
 <span class='legend-badge bg-greenery'>🟢 Healthy (>70%)</span>
 <span class='legend-badge bg-illuminating'>🟡 Moderate Stress (40-70%)</span>
 <span class='legend-badge bg-terracotta'>🔴 Severe Stress (<40%)</span>
 </div>
-            """, unsafe_allow_html=True)
-            
-            img_col1, img_col2 = st.columns(2)
-            with img_col1:
-                st.markdown("<div class='animated-image'>", unsafe_allow_html=True)
-                st.image(orig_rgb, caption="Original Aerial View", use_container_width=True)
-                st.markdown("</div>", unsafe_allow_html=True)
-            with img_col2:
-                st.markdown("<div class='animated-image'>", unsafe_allow_html=True)
-                st.image(overlay_rgb, caption="CropSight Health Overlay", use_container_width=True)
-                st.markdown("</div>", unsafe_allow_html=True)
-            
-            # --- Specific Zones ---
-            st.markdown("### 📍 Drill-Down: Specific Zones")
-            st.dataframe(zones_df, use_container_width=True, hide_index=True)
-            
-            # --- Pathology & Treatment Button Section ---
-            st.markdown("---")
-            if 'show_pathology' not in st.session_state:
-                st.session_state.show_pathology = False
+        """, unsafe_allow_html=True)
 
-            col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
-            with col_btn2:
-                st.markdown("<br>", unsafe_allow_html=True)
-                if st.button("🔬 Diagnose Possible Diseases & View Treatments ➔", use_container_width=True, key="path_btn"):
-                    st.session_state.show_pathology = not st.session_state.show_pathology
-                    
-            if st.session_state.show_pathology:
-                RAW_HTML = """
-<style>
-    @keyframes fadeInSlideUp { 0% { opacity: 0; transform: translateY(20px); } 100% { opacity: 1; transform: translateY(0); } }
-    body { font-family: 'Comic Sans MS', 'Chalkboard SE', 'Segoe UI', cursive, sans-serif; background-color: transparent; margin: 0; padding: 5px; }
-    .pathology-box {
-        background-color: #ffffff;
-        border: 4px dashed #DF654D;
-        padding: 30px;
-        border-radius: 30px;
-        box-shadow: 0 10px 25px rgba(223, 101, 77, 0.15);
-        animation: fadeInSlideUp 0.8s ease forwards;
-    }
-    h3 { margin-top: 0; color: #DF654D; margin-bottom: 20px; font-weight: 900; font-size: 1.6rem;}
-    h4 { margin-top: 25px; color: #588560; border-bottom: 3px dotted #7bb284; padding-bottom: 8px; font-size: 1.2rem;}
-    ul { padding-left: 15px; color: #4a5d4a; }
-    li { margin-bottom: 12px; font-size: 1.05rem; line-height: 1.4; font-family: 'Segoe UI', sans-serif;}
-    b { color: #333333; }
-</style>
-<div class="pathology-box">
-<h3>🦠 Deep Diagnostic Pathologies & Targeted Treatments</h3>
+        img_col1, img_col2 = st.columns(2)
+        with img_col1:
+            st.markdown("<div class='animated-image'>", unsafe_allow_html=True)
+            st.image(orig_rgb, caption="Original Aerial View", use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+        with img_col2:
+            st.markdown("<div class='animated-image'>", unsafe_allow_html=True)
+            st.image(overlay_rgb, caption="CropSight Health Overlay", use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
-<div class="path-section">
-<h4>1. Potential Diseases Detected</h4>
-<ul>
-<li><b>Fungal Diseases</b> – Caused by fungi; thrive in warm, humid conditions.<br><i>Examples: Powdery Mildew, Downy Mildew, Rust, Leaf Spot</i></li>
-<li><b>Bacterial Diseases</b> – Caused by pathogenic bacteria, often spread through water, tools, or infected seeds.<br><i>Examples: Bacterial Blight, Soft Rot, Leaf Spot</i></li>
-<li><b>Viral Diseases</b> – Caused by viruses; usually spread by insects like aphids or whiteflies.<br><i>Examples: Mosaic Virus, Yellow Vein Virus, Tomato Leaf Curl Virus</i></li>
-<li><b>Nematode Infestations</b> – Microscopic worms affecting roots and underground parts.<br><i>Examples: Root-knot Nematodes, Cyst Nematodes</i></li>
-<li><b>Physiological Disorders</b> – Non-infectious diseases due to nutrient deficiency, water stress, or environmental factors.<br><i>Examples: Leaf Chlorosis, Blossom End Rot, Stunted Growth</i></li>
-</ul>
-</div>
+        # --- Specific Zones Table ---
+        st.markdown("### 📍 Drill-Down: Specific Zones")
+        st.dataframe(zones_df, use_container_width=True, hide_index=True)
 
-<div class="path-section">
-<h4>🌱 Natural & Organic Remedies</h4>
-<ul>
-<li><b>For Fungal Diseases:</b> Spray Neem Oil Extract or Bordeaux mixture (copper sulphate and slaked lime) every 7-14 days.</li>
-<li><b>For Viral & Bacterial Spread:</b> Control insect vectors naturally using insecticidal soaps. Remove and burn infected plants.</li>
-<li><b>For Nematodes:</b> Practice crop rotation and plant marigolds as a trap crop to deter root-knot nematodes naturally.</li>
-<li><b>Physiological Fixes:</b> Apply worm castings tea or liquid kelp extract for nutrient lockout (Chlorosis/Stunted growth).</li>
-</ul>
-</div>
+        # --- Geo-tagged Health Zone Overlay on Interactive Map ---
+        st.markdown("---")
+        st.markdown("### 🌍 Geo-Tagged Health Zones on Your Farm")
+        st.markdown(f"Health zones overlaid on your selected farm area at **({farm_lat:.4f}, {farm_lon:.4f})**.")
 
-<div class="path-section">
-<h4>🧪 Chemical Commercial Interventions</h4>
-<ul>
-<li><b>Fungicides:</b> Apply broad-spectrum treatments containing Chlorothalonil or Mancozeb at the recommended rate.</li>
-<li><b>Bactericides & Pesticides:</b> Copper-based sprays for bacterial diseases. Imidacloprid or Pyrethrin for aphid/whitefly vectors.</li>
-<li><b>Nematicides:</b> Synthetic non-fumigant nematicides (e.g., Oxamyl) for severe root knot outbreaks.</li>
-<li><b>Synthetic Fertilizers:</b> Soluble NPK 20-20-20 drip irrigation feed to rapidly correct Physiological Disorders.</li>
-</ul>
-</div>
+        try:
+            health_map = folium.Map(location=[farm_lat, farm_lon], zoom_start=16)
 
-<p style="font-size: 0.9rem; color: #777; margin-top:20px; font-family: 'Segoe UI', sans-serif;"><i>*Disclaimer: Always follow manufacturer instructions on any chemical interventions. CropSight diagnostics cannot replace on-the-ground soil sampling.</i></p>
-</div>
-"""
-                st.components.v1.html(RAW_HTML, height=880, scrolling=True)
-            
-            # --- Export Area ---
-            st.markdown("---")
-            st.markdown("### 🖨️ Export & Geography")
-            dl_col1, dl_col2 = st.columns(2)
-            with dl_col1:
-                with st.container():
-                    st.write("**Save Your Intelligent Report**")
-                    farm_name = st.text_input("Enter Farm Name for PDF:", "My Field 1")
-                    if st.button("Compile PDF Data", key="pdf_btn"):
-                        pdf_bytes = create_pdf(farm_name, overall_score, orig_rgb, overlay_rgb, zones_df, farmer_tips)
-                        st.download_button(
-                            label="Download Report PDF 📥",
-                            data=pdf_bytes,
-                            file_name=f"CropSight_Report_{farm_name.replace(' ', '_')}.pdf",
-                            mime="application/pdf"
-                        )
-            with dl_col2:
-                with st.container():
-                    show_map = st.checkbox("Show Field Map (GPS Location from Image)", value=True)
-                    if show_map:
-                        gps_coords = get_exif_location(image_bytes)
-                        if gps_coords:
-                            lat, lon = gps_coords
-                            st.success(f"📍 Location extracted from image EXIF data: {lat:.4f}, {lon:.4f}")
-                        else:
-                            st.warning("⚠️ No GPS EXIF data found. Showing default demo location (Kerala, India).")
-                            lat, lon = 9.3175, 76.3900
-                            
-                        try:
-                            m = folium.Map(location=[lat, lon], zoom_start=15)
-                            folium.Marker([lat, lon], popup="Analyzed Field (Kuttanad, Kerala)").add_to(m)
-                            folium.Polygon(
-                                locations=[(lat+0.001, lon-0.001), (lat+0.002, lon+0.001), (lat-0.001, lon+0.002), (lat-0.001, lon-0.001)],
-                                color="#DF654D", weight=2, fill_color="#DF654D", fill_opacity=0.5, tooltip="Red Zone: Irrigate Now"
-                            ).add_to(m)
-                            st_folium(m, width="100%", height=250)
-                        except Exception as e:
-                            st.write("Folium mapping unavailable at the moment.", str(e))
-                    else:
-                        st.info("Enable GPS mapping to visualize field location context.")
-                
+            # Draw the user's farm boundary
+            folium.Polygon(
+                locations=farm_boundary,
+                color="#588560",
+                weight=3,
+                fill=False,
+                tooltip=f"{farmer_name}'s Farm Boundary",
+                dash_array="10",
+            ).add_to(health_map)
+
+            folium.Marker(
+                [farm_lat, farm_lon],
+                popup=f"{farmer_name}'s Farm",
+                tooltip=f"📍 {farmer_name}'s Farm",
+                icon=folium.Icon(color="green", icon="leaf", prefix="fa")
+            ).add_to(health_map)
+
+            # Compute bounding box of the farm for zone placement
+            min_lat, max_lat = min(_lats), max(_lats)
+            min_lon, max_lon = min(_lons), max(_lons)
+            lat_range = max_lat - min_lat
+            lon_range = max_lon - min_lon
+
+            # Build zone sub-rectangles inside the farm boundary
+            n_zones = len(zones_df)
+            for i, (_, row) in enumerate(zones_df.iterrows()):
+                sev = row["Severity"]
+                color_map = {
+                    "Severe Stress": "#DF654D",
+                    "Moderate Stress": "#F5DF4D",
+                    "Healthy": "#7BB284",
+                }
+                zone_color = color_map.get(sev, "#999999")
+                # Divide farm into horizontal strips for each zone
+                strip_min_lat = min_lat + (lat_range / n_zones) * i
+                strip_max_lat = min_lat + (lat_range / n_zones) * (i + 1)
+                zone_poly = [
+                    (strip_min_lat, min_lon),
+                    (strip_min_lat, max_lon),
+                    (strip_max_lat, max_lon),
+                    (strip_max_lat, min_lon),
+                ]
+                folium.Polygon(
+                    locations=zone_poly,
+                    color=zone_color,
+                    weight=2,
+                    fill_color=zone_color,
+                    fill_opacity=0.4,
+                    tooltip=f"{row['Zone']} – {sev} | Score: {row['Health Score']} | {row['Farmer Action']}"
+                ).add_to(health_map)
+
+            st_folium(health_map, width="100%", height=450, key="health_zone_map")
         except Exception as e:
-            st.error(f"Error processing image: {str(e)}")
+            st.warning(f"Map rendering issue: {str(e)}")
+
+        # --- Export Area ---
+        st.markdown("---")
+        st.markdown("### 🖨️ Export Report")
+        col_dl1, col_dl2, col_dl3 = st.columns([1, 2, 1])
+        with col_dl2:
+            with st.container():
+                st.write("**Save Your Intelligent Report**")
+                pdf_farm_name = st.text_input("Enter Farm Name for PDF:", farmer_name + "'s Farm", key="pdf_name")
+                if st.button("Compile PDF Data", key="pdf_btn"):
+                    pdf_bytes = create_pdf(pdf_farm_name, overall_score, orig_rgb, overlay_rgb, zones_df, farmer_tips, ai_diagnosis, ai_cure)
+                    st.download_button(
+                        label="📄 Download AI Diagnostic & Action Report (PDF)",
+                        data=pdf_bytes,
+                        file_name=f"CropSight_AI_Report_{pdf_farm_name.replace(' ', '_')}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+
+    except Exception as e:
+        st.error(f"Error processing image: {str(e)}")
 
 st.markdown("""
 <div class='footer'>
