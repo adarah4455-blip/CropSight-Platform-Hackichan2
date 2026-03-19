@@ -161,8 +161,9 @@ def login_google_user(email, google_id):
     c.execute('SELECT email FROM users WHERE email = ?', (email,))
     user = c.fetchone()
     if not user:
-        # Create new Google user
-        c.execute('INSERT INTO users (email, google_id) VALUES (?, ?)', (email, google_id))
+        # Create new Google user with a placeholder password to satisfy potential hidden constraints
+        c.execute('INSERT INTO users (email, password, google_id) VALUES (?, ?, ?)', 
+                  (email, 'GOOGLE_AUTH_ACCOUNT', google_id))
     else:
         # Update existing user with Google ID if not present
         c.execute('UPDATE users SET google_id = ? WHERE email = ?', (google_id, email))
