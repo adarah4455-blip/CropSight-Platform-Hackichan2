@@ -1309,18 +1309,19 @@ with st.expander("💬 **Open AI Assistant (Cropie)**", expanded=False):
         if prompt := st.text_input("", placeholder="Ask Cropie anything...", key="main_chat_input_text", label_visibility="collapsed"):
             st.session_state.chat_history.append({"role": "user", "content": prompt})
             
-            # Context-Aware Intelligence Logic
+            # Context-Aware Intelligence Logic (Fixing NameError)
+            active_farm = st.session_state.get('pdf_farm_name', 'your managed land')
             p = prompt.lower()
             if any(w in p for w in ["hi", "hello", "hey", "who are you"]):
-                response = f"Hello! I'm **Cropie**, your personal agronomist for **{selected_farm}**. I'm currently monitoring your **{selected_crop}** crops. How can I assist you today?"
+                response = f"Hello! I'm **Cropie**, your personal agronomist for **{active_farm}**. I'm currently monitoring your **{selected_crop}** crops. How can I assist you today?"
             elif any(w in p for w in ["what", "how", "site", "platform"]):
                 response = "CropSight is a **Next-Gen Aerial Action Platform**. We use specialized **Vision Transformers** and **Remote Sensing** to transform drone/mobile photos into actionable agricultural intelligence."
             elif "vari" in p:
                 response = "VARI (Visible Atmospherically Resistant Index) is the scientific formula we use to detect plant vigor without needing expensive multispectral cameras. It's high-tech scouting in your pocket!"
             elif any(w in p for w in ["health", "score", "percent"]):
-                response = f"Your health score for **{selected_crop}** is a high-precision metric. Scores above 70% indicate optimal growth, while anything below 40% requires **Urgent Tactical Intervention**."
+                response = f"Your health score for **{selected_crop}** on **{active_farm}** is a high-precision metric. Scores above 70% indicate optimal growth."
             elif any(w in p for w in ["save", "record", "data", "history"]):
-                response = f"All records for **{selected_farm}** are securely indexed in our **Blockchain-Ready Farm Ledger**. You can review historical health trends in the sidebar."
+                response = f"All records for **{active_farm}** are securely indexed in our **Blockchain-Ready Farm Ledger**."
             elif any(w in p for w in ["pdf", "report", "download", "export"]):
                 response = "Our **Master Portfolio Report** can be exported as a professional PDF. You'll find the download button at the bottom of the analysis page."
             elif any(w in p for w in ["cpu", "gpu", "ai", "model", "diagnos"]):
