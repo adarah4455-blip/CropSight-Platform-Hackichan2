@@ -1236,17 +1236,20 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Using a sidebar column or a floating container for the actual chat
-with st.sidebar:
-    st.markdown("---")
-    st.subheader("🤖 AI Crop Advisor")
+# --- AI Chatbot Assistant ---
+st.markdown("---")
+with st.expander("🤖 **Chat with Cropie (AI Site Assistant)**", expanded=False):
+    st.info("I'm your AI guide! Ask me about VARI, AI Diagnosis, PDF Reports, or how to save your farm data.")
+    
+    # Render Chat History
     for msg in st.session_state.chat_history:
         if msg["role"] == "user":
             st.chat_message("user", avatar="👨‍🌾").write(msg["content"])
         else:
             st.chat_message("assistant", avatar="🌱").write(msg["content"])
 
-    if prompt := st.chat_input("Ask about CropSight..."):
+    # Chat Input
+    if prompt := st.chat_input("Ask about CropSight...", key="main_chat_input"):
         st.session_state.chat_history.append({"role": "user", "content": prompt})
         
         # Simple Logic for Hackathon Demo Knowledge Base
