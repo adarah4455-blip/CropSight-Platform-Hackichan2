@@ -9,5 +9,9 @@ streamlit-google-auth
 numpy
 requests
 transformers
+ultralytics
+openai
+segment-anything
+opencv-python
 torch
 torchvision

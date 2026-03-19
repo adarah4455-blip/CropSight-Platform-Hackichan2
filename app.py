@@ -33,7 +33,7 @@ GOOGLE_CLIENT_SECRET = "YOUR_CLIENT_SECRET_HERE"
 @st.cache_resource
 def load_ai_model():
     # link98/crop-disease-detection is a stable and accurate model for image classification
-    return pipeline("image-classification", model="link98/crop-disease-detection")
+    return pipeline("image-classification", model="nateraw/vit-base-beans")
 
 try:
     ai_pipeline = load_ai_model()
@@ -326,6 +326,8 @@ def get_ai_diagnosis(crop_type, overall_score, zones_df, ai_label=None, ai_confi
         
         # Mapping common model outputs to professional cures
         cures = {
+            "angular leaf spot": "Apply protective copper-based fungicides. Rotate crops and remove infected debris to break the fungal life cycle.",
+            "bean rust": "Spray sulfur or chlorothalonil-based fungicides. Use resistant varieties and avoid overhead irrigation to keep foliage dry.",
             "Apple scab": "Apply fungicide like Captan or Myclobutanil. Clear fallen leaves to prevent overwintering spores.",
             "Black rot": "Prune out infected branches and fruit. Use copper-based fungicides during the growing season.",
             "Cedar apple rust": "Remove nearby juniper trees if possible. Apply protective fungicide sprays in early spring.",
