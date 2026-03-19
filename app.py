@@ -61,7 +61,15 @@ st.markdown("""
     @keyframes pulseShadow { 0% { box-shadow: 0 0 0 0 rgba(123, 178, 132, 0.5); } 70% { box-shadow: 0 0 0 20px rgba(123, 178, 132, 0); } 100% { box-shadow: 0 0 0 0 rgba(123, 178, 132, 0); } }
     @keyframes scaleIn { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
     
-    .animated-card { animation: fadeInSlideUp 0.8s ease forwards; }
+    .animated-card { 
+        animation: fadeInSlideUp 0.8s ease forwards; 
+        padding: 1.8rem;
+        background-color: rgba(255, 255, 255, 0.95); 
+        border-radius: 30px;
+        box-shadow: 0 10px 30px rgba(123, 178, 132, 0.1);
+        margin-bottom: 1rem;
+        border: 3px solid #eef6f0;
+    }
     .animated-image img { border-radius: 24px; box-shadow: 0 10px 30px rgba(123, 178, 132, 0.2); }
     .animated-image { animation: scaleIn 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
     
@@ -80,16 +88,7 @@ st.markdown("""
     .main-header { font-size: 4.2rem; color: #7bb284; font-weight: 900; margin-bottom: 0; text-shadow: 2px 2px 0px #eef6f0; }
     .sub-header { font-size: 1.3rem; color: #588560; margin-top: 5px; font-weight: 600; }
     
-    /* Cute Rounded Cards */
-    div[data-testid="stVerticalBlock"] > div[style*="flex-direction: column;"] {
-        padding: 1.8rem;
-        background-color: rgba(255, 255, 255, 0.95); 
-        border-radius: 30px;
-        box-shadow: 0 10px 30px rgba(123, 178, 132, 0.1);
-        margin-bottom: 1rem;
-        animation: fadeInSlideUp 0.6s ease forwards;
-        border: 3px solid #eef6f0;
-    }
+    /* Cute Rounded Cards - TARGETED ONLY via .animated-card class */
     
     .metric-container {
         text-align: center;
