@@ -1244,15 +1244,13 @@ with st.container():
     
     st.markdown("</div>", unsafe_allow_html=True)
 
-# 📸 Input Area at the Bottom
+# 📸 Input Area at the Bottom - Optimized for "One-time" Submission
 st.markdown("<br>", unsafe_allow_html=True)
-col_up, col_chat, col_clear = st.columns([1, 6, 1])
 
-with col_up:
-    chat_upload = st.file_uploader("➕", type=["jpg", "png", "jpeg"], key="chat_img_up_gpt", label_visibility="collapsed")
-
-with col_chat:
-    if prompt := st.text_input("", placeholder="Message Cropie...", key="gpt_chat_input", label_visibility="collapsed"):
+# Callback to process chat and clear input
+def process_chat():
+    prompt = st.session_state.gpt_chat_input
+    if prompt:
         st.session_state.chat_history.append({"role": "user", "content": prompt})
         
         # ChatGPT-Style Structured Intelligence Logic
@@ -1260,60 +1258,29 @@ with col_chat:
         p = prompt.lower()
         
         if any(w in p for w in ["hi", "hello", "hey"]):
-            response = f"""
-### 👋 Welcome to CropSight Intelligence
-Hello! I'm **Cropie**, your personal agronomist for **{active_farm}**.
-
-I am currently monitoring your **{selected_crop}** crops. Here is how I can assist you:
-*   **Visual Diagnostics**: Upload a close-up photo using the `+` icon.
-*   **VARI Analysis**: I can explain your field's vegetation vigor.
-*   **Technical Reports**: Ask me about downloading your Master Portfolio.
-
-How can I help you optimize your harvest today?
-"""
+            response = f"### 👋 Welcome Back\nHello! I'm **Cropie**, your personal agronomist for **{active_farm}**. How can I help you optimize your **{selected_crop}** harvest today?"
         elif "vari" in p:
-            response = """
-### 🌡️ Understanding VARI
-**Visible Atmospherically Resistant Index (VARI)** is our core remote sensing metric.
-
-*   **Science**: It uses standard RGB bands to estimate chlorophyll content.
-*   **Benefit**: You get specialized vegetation mapping without needing expensive multispectral (NIR) hardware.
-*   **Result**: High-vigor areas appear bright green, indicating strong photosynthesis.
-"""
+            response = "### 🌡️ Understanding VARI\n**Visible Atmospherically Resistant Index (VARI)** is our core remote sensing metric. It uses standard RGB bands to estimate chlorophyll content accurately."
         elif any(w in p for w in ["health", "score", "percent"]):
-            response = f"""
-### 📊 Health Metrics for {selected_crop}
-Your latest health scores for **{active_farm}** are processed using high-precision spatial analysis.
-
-*   **70% - 100%**: **Optimal**. Your crops are thriving.
-*   **40% - 70%**: **Caution**. Early signs of stress detected.
-*   **Below 40%**: **Alert**. Immediate tactical intervention required.
-"""
+            response = f"### 📊 Health Metrics\nYour health score for **{selected_crop}** is processed using high-precision spatial analysis. Above 70% is optimal."
         elif any(w in p for w in ["pdf", "report", "download"]):
-            response = """
-### 📄 Exporting Your Intelligence
-You can download your **Master Portfolio Report** directly from the main dashboard.
-
-This professional document includes:
-1.  **Full Geospatial History** of your managed lands.
-2.  **AI-Generated Pathological Cures**.
-3.  **Historical Trend Analysis**.
-"""
+            response = "### 📄 Intelligence Reports\nYou can download your **Master Portfolio Report** at the bottom of the page. It compiles all your farm diagnostics."
         elif any(w in p for w in ["cure", "disease", "help", "sick"]):
-            response = f"""
-### 🛡️ Disease Treatment Protocols
-If you notice anomalies in your **{selected_crop}**, I recommend immediate visual analysis.
-
-**Steps to follow:**
-1.  Click the `+` icon on the left.
-2.  Upload a clear, close-up photo of the affected area.
-3.  I will provide a **Precision Cure Plan** with biological and chemical recommendations.
-"""
+            response = f"### 🛡️ Treatment Protocols\nTo solve a specific problem in your **{selected_crop}**, upload a close-up photo using the `+` icon on the left."
         else:
-            response = f"I've noted your query regarding **{prompt}**. While I refine my specific knowledge on this topic, I recommend reviewing the **Regional Crop Guide** on your dashboard for immediate local insights."
+            response = f"I've noted your query regarding **{prompt}**. I recommend checking our **Regional Crop Guide** for immediate local insights!"
         
         st.session_state.chat_history.append({"role": "bot", "content": response})
-        st.rerun()
+        # Clear the input
+        st.session_state.gpt_chat_input = ""
+
+col_up, col_chat, col_clear = st.columns([1, 6, 1])
+
+with col_up:
+    chat_upload = st.file_uploader("➕", type=["jpg", "png", "jpeg"], key="chat_img_up_gpt", label_visibility="collapsed")
+
+with col_chat:
+    st.text_input("", placeholder="Message Cropie...", key="gpt_chat_input", on_change=process_chat, label_visibility="collapsed")
 
 with col_clear:
     if st.button("🧹", key="clear_gpt", help="Clear Chat history"):
