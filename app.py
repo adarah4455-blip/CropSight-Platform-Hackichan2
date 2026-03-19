@@ -560,11 +560,44 @@ with st.sidebar:
     st.markdown(f"### 👤 Profile")
     st.success(f"Logged in as:\n**{st.session_state.user_email}**")
     
-    # Show record count
-    saved_farms_count = len(auth.get_user_farms(st.session_state.user_email))
-    st.info(f"📁 **{saved_farms_count}** Saved Farm Records")
-    
+    # --- Farmer Mailbox ---
     st.markdown("---")
+    st.markdown("### 📬 Farmer Mailbox")
+    
+    # Auto-generate 'scheduled' notifications
+    user_farms = auth.get_user_farms(st.session_state.user_email)
+    if user_farms:
+        last_farm = user_farms[0]
+        # Check if 2 days passed since last record
+        last_scan_time = datetime.datetime.strptime(last_farm[4], "%Y-%m-%d %H:%M:%S")
+        if (datetime.datetime.now() - last_scan_time).days >= 2:
+            alert_msg = f"⏳ Reminder: It has been { (datetime.datetime.now() - last_scan_time).days } days since your last scan of '{last_farm[0]}'. Schedule a check-up now!"
+            # Only add if not recently added
+            existing_notifs = [n[1] for n in auth.get_notifications(st.session_state.user_email)]
+            if alert_msg not in existing_notifs:
+                auth.add_notification(st.session_state.user_email, alert_msg)
+
+    notifs = auth.get_notifications(st.session_state.user_email)
+    unread_count = len([n for n in notifs if n[3] == 'unread'])
+    
+    if unread_count > 0:
+        st.warning(f"You have {unread_count} unread notifications!")
+    
+    with st.expander(f"View Messages ({unread_count} new)"):
+        if not notifs:
+            st.caption("No messages yet.")
+        for n_id, msg, ts, status in notifs:
+            style = "font-weight: bold; color: #2c3e50;" if status == 'unread' else "color: #7f8c8d;"
+            st.markdown(f"<div style='font-size: 0.85em; margin-bottom: 10px; padding: 5px; border-bottom: 1px solid #eee; {style}'>{msg}<br><i style='font-size: 0.8em;'>{ts}</i></div>", unsafe_allow_html=True)
+            if status == 'unread':
+                if st.button("Mark Read", key=f"read_{n_id}"):
+                    auth.mark_notif_read(n_id)
+                    st.rerun()
+
+    st.markdown("---")
+    # Show record count
+    saved_farms_count = len(user_farms)
+    st.info(f"📁 **{saved_farms_count}** Saved Farm Records")
     if st.button("Logout", use_container_width=True):
         st.session_state.logged_in = False
         st.session_state.user_email = ""

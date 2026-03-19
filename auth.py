@@ -46,6 +46,16 @@ def init_db():
             FOREIGN KEY (email) REFERENCES users (email)
         )
     ''')
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT,
+            message TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            status TEXT DEFAULT 'unread',
+            FOREIGN KEY (email) REFERENCES users (email)
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -111,3 +121,25 @@ def get_analysis_history(email, farm_name=None):
     history = c.fetchall()
     conn.close()
     return history
+
+def add_notification(email, message):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('INSERT INTO notifications (email, message) VALUES (?, ?)', (email, message))
+    conn.commit()
+    conn.close()
+
+def get_notifications(email):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT id, message, timestamp, status FROM notifications WHERE email = ? ORDER BY timestamp DESC', (email,))
+    notifs = c.fetchall()
+    conn.close()
+    return notifs
+
+def mark_notif_read(notif_id):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('UPDATE notifications SET status = "read" WHERE id = ?', (notif_id,))
+    conn.commit()
+    conn.close()
