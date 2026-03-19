@@ -182,6 +182,42 @@ st.markdown("""
     .pathology-box li { margin-bottom: 10px; font-size: 1.1rem;}
     
     .footer { text-align: center; margin-top: 70px; color: #7bb284; font-size: 15px; font-weight: 700; background: rgba(255,255,255,0.7); padding: 15px; border-radius: 20px;}
+
+    /* Floating Chatbot Styles */
+    #chatbot-container {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+        width: 350px;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        border: 2px solid #7bb284;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        animation: fadeInSlideUp 0.8s ease;
+    }
+    .chat-header {
+        background: #7bb284;
+        color: white;
+        padding: 15px;
+        font-weight: bold;
+        text-align: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .chat-body {
+        height: 300px;
+        overflow-y: auto;
+        padding: 15px;
+        background: #fdfdfd;
+        font-size: 0.9em;
+    }
+    .user-msg { background: #eef6f0; padding: 8px 12px; border-radius: 12px 12px 2px 12px; margin-bottom: 10px; text-align: right; margin-left: auto; width: fit-content; max-width: 80%; }
+    .bot-msg { background: #fff; border: 1px solid #7bb284; padding: 8px 12px; border-radius: 12px 12px 12px 2px; margin-bottom: 10px; text-align: left; width: fit-content; max-width: 80%; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -1165,9 +1201,69 @@ with st.spinner("🛰️ Fetching 10m high-res imagery from Sentinel Hub..."):
 
     except Exception as e:
         st.error(f"Error processing image: {str(e)}")
+# --- Floating AI Chatbot Footer Logic ---
+st.markdown("<br><br><div class='footer'>© 2026 CropSight Aerial Intelligence Hub • Developed for Global Hackathon</div>", unsafe_allow_html=True)
 
+# 🤖 Floating AI Chatbot UI
+if 'chat_visible' not in st.session_state:
+    st.session_state.chat_visible = False
+if 'chat_history' not in st.session_state:
+    st.session_state.chat_history = [{"role": "bot", "content": "👋 I'm **Cropie**, your AI farm guide! Ask me anything about this site or your crop health."}]
+
+# Fixed Button to Toggle Chat
 st.markdown("""
-<div class='footer'>
-    Built for SDG 2 Zero Hunger – 24-hour hackathon 🚀 🌱 | <b>CropSight Platform</b>
-</div>
+<style>
+    .chat-toggle {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        z-index: 1001;
+        background: #7bb284;
+        color: white;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 30px;
+        cursor: pointer;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        border: 2px solid white;
+        transition: transform 0.2s;
+    }
+    .chat-toggle:hover { transform: scale(1.1); }
+</style>
 """, unsafe_allow_html=True)
+
+# Using a sidebar column or a floating container for the actual chat
+with st.sidebar:
+    st.markdown("---")
+    st.subheader("🤖 AI Crop Advisor")
+    for msg in st.session_state.chat_history:
+        if msg["role"] == "user":
+            st.chat_message("user", avatar="👨‍🌾").write(msg["content"])
+        else:
+            st.chat_message("assistant", avatar="🌱").write(msg["content"])
+
+    if prompt := st.chat_input("Ask about CropSight..."):
+        st.session_state.chat_history.append({"role": "user", "content": prompt})
+        
+        # Simple Logic for Hackathon Demo Knowledge Base
+        response = "I'm not quite sure about that yet, but I'm learning! You can ask about VARI, AI Diagnosis, or how to save farm records."
+        p_lower = prompt.lower()
+        if "what" in p_lower and "cropsight" in p_lower:
+            response = "CropSight is an **Aerial Action Platform** that uses drone and satellite imagery to diagnose crop health using Remote Sensing and Deep Learning."
+        elif "vari" in p_lower:
+            response = "VARI (Visible Atmospherically Resistant Index) is the mathematical formula we use to detect plant vigor from standard RGB photos without needing expensive infrared sensors."
+        elif "health" in p_lower or "score" in p_lower:
+            response = "Your Health Score (0-100) is calculated based on chlorophyll concentration detected in your leaves. Above 70 is Healthy, below 40 is a Priority Alert."
+        elif "record" in p_lower or "save" in p_lower:
+            response = "Your farm data is saved automatically in our secure SQLite database. You can switch between farms using the record selector in the sidebar."
+        elif "report" in p_lower or "pdf" in p_lower:
+            response = "You can download a Master Portfolio PDF Report at the bottom of the analysis page. It contains a full history for all your managed lands."
+        elif "cure" in p_lower or "diagnos" in p_lower:
+            response = "Our AI Diagnostic Engine uses **Hugging Face Transformers (ViT)** to identify specific pathogens like Angular Leaf Spot or Rust and suggests targeted chemical/biological cures."
+        
+        st.session_state.chat_history.append({"role": "bot", "content": response})
+        st.rerun()
