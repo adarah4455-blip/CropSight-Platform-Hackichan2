@@ -427,7 +427,7 @@ def fetch_sentinel_hub_image(client_id, client_secret, min_lon, min_lat, max_lon
 
 def clean_for_pdf(text):
     text = str(text)
-    replacements = {'🌟 ': '', '⚠️ ': '', '🚨 ': '', '💧 ': '', '🐛 ': '', '🔴': 'Red', '🟡': 'Yellow', '🟢': 'Green', '*': ''}
+    replacements = {'🌟 ': '', '⚠️ ': '', '🚨 ': '', '💧 ': '', '🐛 ': '', '🔴': 'Red', '🟡': 'Yellow', '🟢': 'Green', '*': '', '🌍': '', '🌾': 'Rice', '🥥': 'Coconut', '🍌': 'Banana', '🌳': 'Arecanut', '🧤': 'Rubber', '🍍': 'Pineapple'}
     for k, v in replacements.items():
         text = text.replace(k, v)
     return text.encode('latin-1', 'ignore').decode('latin-1')
@@ -448,7 +448,7 @@ def create_pdf(email, current_farm_name, current_score, original, overlay, zones
     # Portfolio Table
     pdf.set_font("Arial", 'B', 14)
     pdf.set_fill_color(240, 240, 240)
-    pdf.cell(0, 10, " 🌍 All Managed Land Records Summary", 0, 1, 'L', 1)
+    pdf.cell(0, 10, clean_for_pdf(" 🌍 All Managed Land Records Summary"), 0, 1, 'L', 1)
     pdf.set_font("Arial", 'B', 12)
     p_cols = [70, 40, 60, 100]
     p_headers = ["Farm/Field Name", "Avg Score", "Last Activity", "Status Indicator"]
@@ -484,7 +484,7 @@ def create_pdf(email, current_farm_name, current_score, original, overlay, zones
     # AI Diagnosis Section in PDF
     pdf.set_font("Arial", 'B', 14)
     pdf.set_fill_color(240, 240, 240)
-    pdf.cell(0, 10, " AI Pathogen & Stress Diagnostic Report", 0, 1, 'L', 1)
+    pdf.cell(0, 10, clean_for_pdf(" AI Pathogen & Stress Diagnostic Report"), 0, 1, 'L', 1)
     pdf.set_font("Arial", 'B', 12)
     pdf.set_text_color(231, 76, 60) # Red
     pdf.cell(0, 8, f"Detected Condition: {clean_for_pdf(ai_diagnosis)}", 0, 1)
