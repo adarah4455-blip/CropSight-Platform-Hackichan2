@@ -1251,13 +1251,29 @@ st.markdown("""
 # Actual Interaction remains in a prominent expander for Streamlit consistency
 st.markdown("---")
 with st.expander("💬 **Open AI Assistant (Cropie)**", expanded=False):
-    st.info("👋 Hello! I'm **Cropie**, your high-performance AI guide. I'm here to help you maximize your farm's productivity!")
+    st.info("👋 Hello! I'm **Cropie**. You can ask me questions or **upload a close-up photo** of a crop problem for an instant AI diagnosis!")
     
-    # Use the generated cropie icon if available, otherwise 🤖
+    # Use the generated cropie icon if available
     avatar_bot = "C:/Users/USER/.gemini/antigravity/brain/4c6c4290-47d0-490c-a732-4101569940ed/cropie_ai_assistant_icon_1773901378661.png"
     if not os.path.exists(avatar_bot):
         avatar_bot = "🌱"
     
+    # 📸 Chat-based Image Upload for Diagnosis
+    chat_upload = st.file_uploader("Upload a close-up for AI Diagnosis:", type=["jpg", "png", "jpeg"], key="chat_img_up")
+    if chat_upload:
+        if 'last_chat_upload' not in st.session_state or st.session_state.last_chat_upload != chat_upload.name:
+            st.session_state.last_chat_upload = chat_upload.name
+            with st.spinner("Cropie is analyzing your photo..."):
+                img_bytes = chat_upload.read()
+                ai_label, ai_conf = ai_crop_analysis(img_bytes)
+                # Get a diagnosis/cure using the existing logic (simplified for chat)
+                diag, cure = get_ai_diagnosis(selected_crop, 50, None, ai_label, ai_conf) # Score 50 as neutral fallback
+                
+                # Add to chat history
+                st.session_state.chat_history.append({"role": "user", "content": f"I've uploaded a photo: **{chat_upload.name}**"})
+                st.session_state.chat_history.append({"role": "bot", "content": f"I've analyzed your photo! 🕵️‍♂️ Based on my Deep Learning vision, I've detected: **{diag}** (Confidence: {ai_conf*100:.1f}%).\n\n**Recommended Cure:** {cure}"})
+                st.rerun()
+
     # Render Chat History
     for msg in st.session_state.chat_history:
         if msg["role"] == "user":
