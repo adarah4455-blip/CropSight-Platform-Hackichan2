@@ -13,8 +13,13 @@ from folium.plugins import Draw
 from streamlit_folium import st_folium
 import os
 import base64
-import requests
 import datetime
+import requests
+
+# --- Global App Defaults (Previously in Sidebar) ---
+selected_crop = "Rice"  # Default crop type
+sh_client_id = "9014ff84-e5be-44a4-b866-caa7d576c8a0"
+sh_client_secret = "zlnN8FTFmxBmEFt6bSkNQcGM4kBqciPx"
 
 # --- Default Page Config ---
 st.set_page_config(
@@ -156,6 +161,9 @@ st.markdown("""
 
 @st.cache_data
 def analyze_image(image_bytes):
+    # Ensure bytes for consistent hashing and processing
+    image_bytes = bytes(image_bytes)
+    
     nparr = np.frombuffer(image_bytes, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     original_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -275,25 +283,45 @@ def get_ai_diagnosis(crop_type, overall_score, zones_df):
     # Diagnosis Logic based on Crop Type and Stress
     diagnosis_map = {
         "Rice": {
+            "name": "Paddy (Rice)",
             "Severe Stress": ("Potentially Rice Blast (Fungal)", "Apply Tricyclazole or Azoxystrobin fungicide immediately. Ensure field drainage to prevent further spore spread."),
             "Moderate Stress": ("Potentially Brown Spot or Stem Rot", "Check for brown lesions on leaves. Apply potassium-rich fertilizer and ensure uniform water distribution.")
         },
+        "Coconut": {
+            "name": "Coconut Palm",
+            "Severe Stress": ("Bud Rot (Phytophthora)", "Apply Bordeaux paste to the affected bud. Remove and burn the infected palms to avoid spread."),
+            "Moderate Stress": ("Leaf Rot / Root Wilt", "Improve drainage and apply 1kg of lime per palm annually. Use organic manure and green leaves.")
+        },
+        "Banana": {
+            "name": "Banana (Nendran)",
+            "Severe Stress": ("Sigatoka Leaf Spot", "Spray mineral oil or carbendazim. Remove and burn heavily infected leaves immediately."),
+            "Moderate Stress": ("Panama Wilt / Nutrient Deficiency", "Check for yellowing at margins. Apply balanced NPK and ensure proper soil aeration.")
+        },
+        "Arecanut": {
+            "name": "Areca Nut",
+            "Severe Stress": ("Mahali / Fruit Rot", "Apply 1% Bordeaux mixture spray before and during the monsoon rains."),
+            "Moderate Stress": ("Yellow Leaf Disease", "Provide adequate irrigation and apply focused micronutrient fertilizer (Zinc/Boron).")
+        },
+        "Rubber": {
+            "name": "Rubber Plantation",
+            "Severe Stress": ("Abnormal Leaf Fall", "Ariel spraying of oil-based copper oxychloride before monsoon sets in."),
+            "Moderate Stress": ("Powdery Mildew", "Apply sulphur dusting during new leaf emergence to control the fungal spread.")
+        },
         "Wheat": {
+            "name": "Wheat",
             "Severe Stress": ("Potentially Leaf Rust or Fusarium Blight", "Apply Propiconazole or Tebuconazole. Avoid overhead irrigation during humid periods."),
             "Moderate Stress": ("Nitrogen Deficiency or Aphid Infestation", "Apply nitrogen-rich top dressing. Inspect for small pests on the underside of leaves.")
         },
         "Corn": {
+            "name": "Corn (Maize)",
             "Severe Stress": ("Potentially Northern Leaf Blight (NLB)", "Apply Mancozeb or Chlorothalonil. Remove and destroy infected crop residue after harvest."),
             "Moderate Stress": ("Drought Stress or Nutrient Mining", "Increase irrigation frequency. Conduct a soil test to check for phosphorus deficiency.")
         },
         "Sugarcane": {
+            "name": "Sugarcane",
             "Severe Stress": ("Potentially Red Rot or Sugarcane Smut", "Infected stalks should be removed and burnt. Treat future sets with hot water (52°C for 30 mins)."),
             "Moderate Stress": ("Iron or Zinc Chlorosis", "Apply foliar spray of 1% Ferrous sulphate or Zinc sulphate to restore greenness.")
         },
-        "Other": {
-            "Severe Stress": ("Advanced Pathogen Infection / Root Decay", "Consult a local agronomist. High probability of soil-borne pathogens or major irrigation failure."),
-            "Moderate Stress": ("Environmental Stress / Early-stage Infection", "Monitor for 48 hours. Ensure consistent nutrient supply and check for visible leaf spotting.")
-        }
     }
 
     # Default if healthy
@@ -301,13 +329,24 @@ def get_ai_diagnosis(crop_type, overall_score, zones_df):
         return "Normal Vigor", "No significant pathogens detected. Continue standard monitoring and maintenance schedule."
 
     # Select Diagnosis
-    crop_data = diagnosis_map.get(crop_type, diagnosis_map["Other"])
+    crop_data = diagnosis_map.get(crop_type, diagnosis_map.get("Rice"))
     if has_severe:
         return crop_data["Severe Stress"]
     elif has_moderate:
         return crop_data["Moderate Stress"]
     else:
         return "Minor Seasonal Stress", "Crops are generally healthy but showing slight seasonal variation. Check for minor insect activity."
+
+def get_regional_crop_guide():
+    """Returns a full list of regional crop data for the Kuttanad region."""
+    return [
+        {"Crop": "🌾 Paddy (Rice)", "Typical Disease": "Rice Blast", "Natural Cure": "Bordeaux Mixture / Crop Rotation", "Chemical Cure": "Tricyclazole"},
+        {"Crop": "🥥 Coconut", "Typical Disease": "Bud Rot", "Natural Cure": "Bordeaux Paste application", "Chemical Cure": "Copper Oxychloride"},
+        {"Crop": "🍌 Banana", "Typical Disease": "Sigatoka Leaf Spot", "Natural Cure": "Leaf Pruning / Neem Oil", "Chemical Cure": "Propiconazole"},
+        {"Crop": "🌳 Arecanut", "Typical Disease": "Mahali (Fruit Rot)", "Natural Cure": "1% Bordeaux Mixture Spray", "Chemical Cure": "Captan"},
+        {"Crop": "🧤 Rubber", "Typical Disease": "Abnormal Leaf Fall", "Natural Cure": "Improved drainage", "Chemical Cure": "Oil-based Copper Fungicide"},
+        {"Crop": "🍍 Pineapple", "Typical Disease": "Heart Rot", "Natural Cure": "Good drainage and mulching", "Chemical Cure": "Aliette / Fose-Al"},
+    ]
 
 @st.cache_data(ttl=3600)
 def fetch_sentinel_hub_image(client_id, client_secret, min_lon, min_lat, max_lon, max_lat):
@@ -380,7 +419,7 @@ def fetch_sentinel_hub_image(client_id, client_secret, min_lon, min_lat, max_lon
             "resolution": "10 meters/pixel",
             "layer": "True Color (10m)"
         }
-        return resp.content, meta
+        return bytes(resp.content), meta
     except Exception as e:
         st.sidebar.error(f"Sentinel Hub Auth Error: {str(e)}")
         return None, None
@@ -451,7 +490,8 @@ def create_pdf(farm_name, overall_score, original, overlay, zones_df, tips, ai_d
         pdf.cell(col_widths[2], 10, clean_for_pdf(row['Severity']), 1, 0, 'C')
         pdf.cell(col_widths[3], 10, clean_for_pdf(row['Farmer Action']), 1, 0, 'L')
         pdf.ln()
-    return pdf.output(dest='S').encode('latin-1')
+    # Ensure return is immutable bytes for Streamlit caching/downloading
+    return bytes(pdf.output(dest='S'))
 
 
 # --- Authentication & Frontend Layout Starts Here ---
@@ -518,18 +558,6 @@ if not st.session_state.logged_in:
 with st.sidebar:
     st.markdown(f"### 👤 Profile")
     st.success(f"Logged in as:\n**{st.session_state.user_email}**")
-    
-    st.markdown("---")
-    st.markdown("### 🌾 Crop Configuration")
-    crop_options = ["Rice", "Wheat", "Corn", "Sugarcane", "Other"]
-    selected_crop = st.selectbox("Current Crop Type", options=crop_options, index=0, help="Helps the AI identify typical diseases for your crop.")
-    
-    st.markdown("---")
-    st.markdown("### 🛰️ Sentinel Hub Settings")
-    sh_client_id = st.text_input("Client ID", value="9014ff84-e5be-44a4-b866-caa7d576c8a0", type="password", key="sh_id_input", help="Get this from Sentinel Hub Dashboard")
-    sh_client_secret = st.text_input("Client Secret", value="zlnN8FTFmxBmEFt6bSkNQcGM4kBqciPx", type="password", key="sh_secret_input", help="Get this from Sentinel Hub Dashboard")
-    if not sh_client_id or not sh_client_secret:
-        st.info("💡 Enter your Sentinel Hub credentials to get 10m high-res imagery.")
     
     st.markdown("---")
     if st.button("Logout", use_container_width=True):
@@ -703,7 +731,7 @@ with st.spinner("🛰️ Fetching 10m high-res imagery from Sentinel Hub..."):
                 st.error("No imagery available. Please upload a drone image manually.")
                 st.stop()
 
-        orig_rgb, overlay_rgb, health_array, overall_score = analyze_image(image_bytes)
+        orig_rgb, overlay_rgb, health_array, overall_score = analyze_image(bytes(image_bytes))
         zones_df = find_zones(health_array)
         farmer_tips = generate_tips(overall_score, zones_df)
 
@@ -824,6 +852,14 @@ with st.spinner("🛰️ Fetching 10m high-res imagery from Sentinel Hub..."):
             st_folium(health_map, width="100%", height=450, key="health_zone_map")
         except Exception as e:
             st.warning(f"Map rendering issue: {str(e)}")
+
+        # --- Regional Crop Health Guide (Expanded Table) ---
+        st.markdown("---")
+        st.markdown("### 🗺️ Regional Crop Health Guide (Kuttanad, Kerala)")
+        st.markdown(f"Based on your farm location at **({farm_lat:.4f}, {farm_lon:.4f})**, here are all common regional crops, their frequent diseases, and potential cures.")
+        
+        regional_crops = get_regional_crop_guide()
+        st.table(regional_crops)
 
         # --- Export Area ---
         st.markdown("---")
