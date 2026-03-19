@@ -1267,6 +1267,26 @@ with st.expander("💬 **Open AI Assistant (Cropie)**", expanded=False):
     if not os.path.exists(avatar_bot):
         avatar_bot = "🌱"
     
+    # 💡 Suggested Quick Actions
+    st.write("Suggested Actions:")
+    sq1, sq2, sq3 = st.columns(3)
+    with sq1:
+        if st.button("🌡️ What is VARI?", key="q_vari", use_container_width=True):
+            st.session_state.chat_history.append({"role": "user", "content": "What is VARI?"})
+            st.session_state.chat_history.append({"role": "bot", "content": "VARI stands for **Visible Atmospherically Resistant Index**. It's a high-precision formula we use to detect plant vigor using standard RGB drone photos—no expensive infrared camera needed!"})
+            st.rerun()
+    with sq2:
+        if st.button("📊 Show Reports", key="q_report", use_container_width=True):
+            st.session_state.chat_history.append({"role": "user", "content": "How do I see my reports?"})
+            st.session_state.chat_history.append({"role": "bot", "content": "You can find your **Master Portfolio Report** at the bottom of this page. It compiles all your managed farms into a professional PDF document."})
+            st.rerun()
+    with sq3:
+        if st.button("🛡️ AI Status", key="q_status", use_container_width=True):
+            status = "ONLINE ✨" if ai_pipeline else "OFFLINE (Fallback Active) ⚠️"
+            st.session_state.chat_history.append({"role": "user", "content": "Is the AI online?"})
+            st.session_state.chat_history.append({"role": "bot", "content": f"My diagnostic core is currently **{status}**. I'm ready to analyze your close-up photos!"})
+            st.rerun()
+
     # 📸 Chat-based Image Upload with Modern "+" Icon Layout
     col_up, col_chat = st.columns([1, 5])
     with col_up:
@@ -1284,41 +1304,43 @@ with st.expander("💬 **Open AI Assistant (Cropie)**", expanded=False):
                 st.session_state.chat_history.append({"role": "bot", "content": f"I've analyzed your photo! 🕵️‍♂️ Based on my Deep Learning vision, I've detected: **{diag}** (Confidence: {ai_conf*100:.1f}%).\n\n**Recommended Cure:** {cure}"})
                 st.rerun()
 
-    # Chat Input (Full width below or alongside if possible)
-    # Note: st.chat_input doesn't work inside columns in all versions, 
-    # so we use a regular text input for the horizontal 'modern' look.
+    # Chat Input 
     with col_chat:
         if prompt := st.text_input("", placeholder="Ask Cropie anything...", key="main_chat_input_text", label_visibility="collapsed"):
             st.session_state.chat_history.append({"role": "user", "content": prompt})
             
-            # Enhanced Knowledge Base Logic
+            # Context-Aware Intelligence Logic
             p = prompt.lower()
             if any(w in p for w in ["hi", "hello", "hey", "who are you"]):
-                response = "Hello! I'm **Cropie**, your personal agronomist and site guide. I can help you understand your farm's health, explain our AI diagnostics, or guide you through creating professional PDF reports!"
+                response = f"Hello! I'm **Cropie**, your personal agronomist for **{selected_farm}**. I'm currently monitoring your **{selected_crop}** crops. How can I assist you today?"
             elif any(w in p for w in ["what", "how", "site", "platform"]):
                 response = "CropSight is a **Next-Gen Aerial Action Platform**. We use specialized **Vision Transformers** and **Remote Sensing** to transform drone/mobile photos into actionable agricultural intelligence."
             elif "vari" in p:
                 response = "VARI (Visible Atmospherically Resistant Index) is the scientific formula we use to detect plant vigor without needing expensive multispectral cameras. It's high-tech scouting in your pocket!"
             elif any(w in p for w in ["health", "score", "percent"]):
-                response = "Your health score is a high-precision metric (0-100%). Scores above 70% indicate optimal growth, while anything below 40% requires **Urgent Tactical Intervention**."
+                response = f"Your health score for **{selected_crop}** is a high-precision metric. Scores above 70% indicate optimal growth, while anything below 40% requires **Urgent Tactical Intervention**."
             elif any(w in p for w in ["save", "record", "data", "history"]):
-                response = "All your flight records and scans are securely indexed in our **Blockchain-Ready Farm Ledger**. You can review historical health trends and switch between different land holdings in the sidebar."
+                response = f"All records for **{selected_farm}** are securely indexed in our **Blockchain-Ready Farm Ledger**. You can review historical health trends in the sidebar."
             elif any(w in p for w in ["pdf", "report", "download", "export"]):
-                response = "Our **Master Portfolio Report** can be exported as a professional PDF. You'll find the download button at the bottom of the analysis page—it's perfect for agronomy records or land valuation!"
+                response = "Our **Master Portfolio Report** can be exported as a professional PDF. You'll find the download button at the bottom of the analysis page."
             elif any(w in p for w in ["cpu", "gpu", "ai", "model", "diagnos"]):
                 status = "ONLINE ✨" if ai_pipeline else "OFFLINE (Fallback Active) ⚠️"
-                response = f"My diagnostic core is currently **{status}**. I use specialized **Deep Learning models** to detect pathogens at the cellular level and provide you with instant, curated cures."
+                response = f"My diagnostic core is currently **{status}**. I use specialized **Deep Learning models** to detect pathogens at the cellular level."
             elif any(w in p for w in ["cure", "disease", "help", "sick", "yellow"]):
-                response = "Spotted a problem? Upload a clear photo! I will identify the specific pathogen (like **Rust** or **Blight**) and provide a **Precision Cure Plan** with biological and chemical recommendations."
+                response = f"Spotted a problem in your **{selected_crop}**? Upload a clear photo! I will identify the specific pathogen and provide a **Precision Cure Plan**."
             else:
-                response = "Excellent question! While I refine my knowledge, I recommend checking our **Regional Crop Guide** on the main dashboard for specific local advice, or asking me for a 'PDF Report' demo!"
+                response = "Excellent question! While I refine my knowledge, I recommend checking our **Regional Crop Guide** on the main dashboard for specific local advice!"
             
             st.session_state.chat_history.append({"role": "bot", "content": response})
             st.rerun()
 
+    if st.button("🧹 Clear Chat History", key="clear_chat", use_container_width=True):
+        st.session_state.chat_history = [{"role": "bot", "content": "Chat history cleared. How can I help you now?"}]
+        st.rerun()
+
     st.markdown("<br>", unsafe_allow_html=True)
-    # Render Chat History
-    for msg in st.session_state.chat_history:
+    # Render Chat History (Newest at Top for better UX in small expander)
+    for msg in reversed(st.session_state.chat_history):
         if msg["role"] == "user":
             st.chat_message("user", avatar="👨‍🌾").write(msg["content"])
         else:
