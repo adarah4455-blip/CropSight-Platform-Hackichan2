@@ -1252,21 +1252,27 @@ with st.expander("🤖 **Chat with Cropie (AI Site Assistant)**", expanded=False
     if prompt := st.chat_input("Ask about CropSight...", key="main_chat_input"):
         st.session_state.chat_history.append({"role": "user", "content": prompt})
         
-        # Simple Logic for Hackathon Demo Knowledge Base
-        response = "I'm not quite sure about that yet, but I'm learning! You can ask about VARI, AI Diagnosis, or how to save farm records."
-        p_lower = prompt.lower()
-        if "what" in p_lower and "cropsight" in p_lower:
-            response = "CropSight is an **Aerial Action Platform** that uses drone and satellite imagery to diagnose crop health using Remote Sensing and Deep Learning."
-        elif "vari" in p_lower:
-            response = "VARI (Visible Atmospherically Resistant Index) is the mathematical formula we use to detect plant vigor from standard RGB photos without needing expensive infrared sensors."
-        elif "health" in p_lower or "score" in p_lower:
-            response = "Your Health Score (0-100) is calculated based on chlorophyll concentration detected in your leaves. Above 70 is Healthy, below 40 is a Priority Alert."
-        elif "record" in p_lower or "save" in p_lower:
-            response = "Your farm data is saved automatically in our secure SQLite database. You can switch between farms using the record selector in the sidebar."
-        elif "report" in p_lower or "pdf" in p_lower:
-            response = "You can download a Master Portfolio PDF Report at the bottom of the analysis page. It contains a full history for all your managed lands."
-        elif "cure" in p_lower or "diagnos" in p_lower:
-            response = "Our AI Diagnostic Engine uses **Hugging Face Transformers (ViT)** to identify specific pathogens like Angular Leaf Spot or Rust and suggests targeted chemical/biological cures."
+        # Enhanced Knowledge Base Logic
+        p = prompt.lower()
+        if any(w in p for w in ["hi", "hello", "hey", "who are you"]):
+            response = "Hello! I'm **Cropie**, your CropSight assistant. I can help you understand your farm's health, explain our AI diagnostics, or guide you through creating PDF reports!"
+        elif any(w in p for w in ["what", "how", "site", "platform"]):
+            response = "CropSight is an **Aerial Action Platform**. You upload drone or mobile photos, and we use **Deep Learning (Vision Transformers)** to detect diseases and **Remote Sensing (VARI)** to map vigor."
+        elif "vari" in p:
+            response = "VARI stands for **Visible Atmospherically Resistant Index**. It's a formula that highlights vegetation vigor using only standard RGB colors—no special infrared camera needed!"
+        elif any(w in p for w in ["health", "score", "percent"]):
+            response = "Your health score is a percentage (0-100%). Above 70% is **Healthy**, 40-70% is **Caution**, and below 40% is a **Priority Alert**. This is calculated using chlorophyll intensity."
+        elif any(w in p for w in ["save", "record", "data", "history"]):
+            response = "All your scans are automatically saved in our **Secure Farm Ledger**. You can view historical trends and switch between different land plots using the sidebar selector!"
+        elif any(w in p for w in ["pdf", "report", "download", "export"]):
+            response = "You can download a **Master Portfolio Report** at the bottom of the analysis section. It compiles all your managed farms into a single professional PDF document."
+        elif any(w in p for w in ["cpu", "gpu", "ai", "model", "diagnos"]):
+            status = "ONLINE ✨" if ai_pipeline else "OFFLINE (Fallback Active) ⚠️"
+            response = f"Our AI Diagnostic Engine is currently **{status}**. We use a specialized **Transformer model (vit-base-beans)** to identify pathogens like Rust or Blight at the pixel level."
+        elif any(w in p for w in ["cure", "disease", "help", "sick", "yellow"]):
+            response = "If your crops look yellow or spotted, upload a photo! Our AI will identify the specific pathogen and give you a **Targeted Action Plan** with biological and chemical cures."
+        else:
+            response = "That's a great question! While I'm still learning, I recommend checking our **Regional Crop Guide** on the main dashboard for specific local advice, or asking me about 'VARI' or 'PDF Reports'."
         
         st.session_state.chat_history.append({"role": "bot", "content": response})
         st.rerun()
