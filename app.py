@@ -183,41 +183,42 @@ st.markdown("""
     
     .footer { text-align: center; margin-top: 70px; color: #7bb284; font-size: 15px; font-weight: 700; background: rgba(255,255,255,0.7); padding: 15px; border-radius: 20px;}
 
-    /* Floating Chatbot Styles */
-    #chatbot-container {
+    /* Floating Chatbot Bubble */
+    .floating-chat-bubble {
         position: fixed;
-        bottom: 20px;
-        right: 20px;
-        z-index: 1000;
-        width: 350px;
-        background: white;
-        border-radius: 20px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-        border: 2px solid #7bb284;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-        animation: fadeInSlideUp 0.8s ease;
-    }
-    .chat-header {
+        bottom: 30px;
+        right: 30px;
+        z-index: 1001;
+        width: 70px;
+        height: 70px;
         background: #7bb284;
-        color: white;
-        padding: 15px;
-        font-weight: bold;
-        text-align: center;
+        border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+        border: 3px solid white;
+        cursor: pointer;
+        animation: pulseBubble 2s infinite;
+        font-size: 35px;
     }
-    .chat-body {
-        height: 300px;
-        overflow-y: auto;
-        padding: 15px;
-        background: #fdfdfd;
-        font-size: 0.9em;
+    @keyframes pulseBubble {
+        0% { transform: scale(1); box-shadow: 0 8px 30px rgba(123, 178, 132, 0.4); }
+        50% { transform: scale(1.1); box-shadow: 0 8px 45px rgba(123, 178, 132, 0.7); }
+        100% { transform: scale(1); box-shadow: 0 8px 30px rgba(123, 178, 132, 0.4); }
     }
-    .user-msg { background: #eef6f0; padding: 8px 12px; border-radius: 12px 12px 2px 12px; margin-bottom: 10px; text-align: right; margin-left: auto; width: fit-content; max-width: 80%; }
-    .bot-msg { background: #fff; border: 1px solid #7bb284; padding: 8px 12px; border-radius: 12px 12px 12px 2px; margin-bottom: 10px; text-align: left; width: fit-content; max-width: 80%; }
+    .chat-badge {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        background: #e74c3c;
+        color: white;
+        font-size: 12px;
+        padding: 4px 8px;
+        border-radius: 10px;
+        font-weight: bold;
+        border: 2px solid white;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -1236,43 +1237,59 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- AI Chatbot Assistant ---
+# --- Premium Floating AI Assistant UI ---
+st.markdown("<br><br><div class='footer'>© 2026 CropSight Aerial Intelligence Hub • Developed for Global Hackathon</div>", unsafe_allow_html=True)
+
+# 🤖 Floating AI Pulse Bubble (Visual Highlight)
+st.markdown("""
+<div class='floating-chat-bubble'>
+    🤖
+    <div class='chat-badge'>AI</div>
+</div>
+""", unsafe_allow_html=True)
+
+# Actual Interaction remains in a prominent expander for Streamlit consistency
 st.markdown("---")
-with st.expander("🤖 **Chat with Cropie (AI Site Assistant)**", expanded=False):
-    st.info("I'm your AI guide! Ask me about VARI, AI Diagnosis, PDF Reports, or how to save your farm data.")
+with st.expander("💬 **Open AI Assistant (Cropie)**", expanded=False):
+    st.info("👋 Hello! I'm **Cropie**, your high-performance AI guide. I'm here to help you maximize your farm's productivity!")
+    
+    # Use the generated cropie icon if available, otherwise 🤖
+    avatar_bot = "C:/Users/USER/.gemini/antigravity/brain/4c6c4290-47d0-490c-a732-4101569940ed/cropie_ai_assistant_icon_1773901378661.png"
+    if not os.path.exists(avatar_bot):
+        avatar_bot = "🌱"
     
     # Render Chat History
     for msg in st.session_state.chat_history:
         if msg["role"] == "user":
             st.chat_message("user", avatar="👨‍🌾").write(msg["content"])
         else:
-            st.chat_message("assistant", avatar="🌱").write(msg["content"])
+            st.chat_message("assistant", avatar=avatar_bot).write(msg["content"])
 
     # Chat Input
-    if prompt := st.chat_input("Ask about CropSight...", key="main_chat_input"):
+    if prompt := st.chat_input("How can I help you today?", key="main_chat_input"):
         st.session_state.chat_history.append({"role": "user", "content": prompt})
         
         # Enhanced Knowledge Base Logic
         p = prompt.lower()
         if any(w in p for w in ["hi", "hello", "hey", "who are you"]):
-            response = "Hello! I'm **Cropie**, your CropSight assistant. I can help you understand your farm's health, explain our AI diagnostics, or guide you through creating PDF reports!"
+            response = "Hello! I'm **Cropie**, your personal agronomist and site guide. I can help you understand your farm's health, explain our AI diagnostics, or guide you through creating professional PDF reports!"
         elif any(w in p for w in ["what", "how", "site", "platform"]):
-            response = "CropSight is an **Aerial Action Platform**. You upload drone or mobile photos, and we use **Deep Learning (Vision Transformers)** to detect diseases and **Remote Sensing (VARI)** to map vigor."
+            response = "CropSight is a **Next-Gen Aerial Action Platform**. We use specialized **Vision Transformers** and **Remote Sensing** to transform drone/mobile photos into actionable agricultural intelligence."
         elif "vari" in p:
-            response = "VARI stands for **Visible Atmospherically Resistant Index**. It's a formula that highlights vegetation vigor using only standard RGB colors—no special infrared camera needed!"
+            response = "VARI (Visible Atmospherically Resistant Index) is the scientific formula we use to detect plant vigor without needing expensive multispectral cameras. It's high-tech scouting in your pocket!"
         elif any(w in p for w in ["health", "score", "percent"]):
-            response = "Your health score is a percentage (0-100%). Above 70% is **Healthy**, 40-70% is **Caution**, and below 40% is a **Priority Alert**. This is calculated using chlorophyll intensity."
+            response = "Your health score is a high-precision metric (0-100%). Scores above 70% indicate optimal growth, while anything below 40% requires **Urgent Tactical Intervention**."
         elif any(w in p for w in ["save", "record", "data", "history"]):
-            response = "All your scans are automatically saved in our **Secure Farm Ledger**. You can view historical trends and switch between different land plots using the sidebar selector!"
+            response = "All your flight records and scans are securely indexed in our **Blockchain-Ready Farm Ledger**. You can review historical health trends and switch between different land holdings in the sidebar."
         elif any(w in p for w in ["pdf", "report", "download", "export"]):
-            response = "You can download a **Master Portfolio Report** at the bottom of the analysis section. It compiles all your managed farms into a single professional PDF document."
+            response = "Our **Master Portfolio Report** can be exported as a professional PDF. You'll find the download button at the bottom of the analysis page—it's perfect for agronomy records or land valuation!"
         elif any(w in p for w in ["cpu", "gpu", "ai", "model", "diagnos"]):
             status = "ONLINE ✨" if ai_pipeline else "OFFLINE (Fallback Active) ⚠️"
-            response = f"Our AI Diagnostic Engine is currently **{status}**. We use a specialized **Transformer model (vit-base-beans)** to identify pathogens like Rust or Blight at the pixel level."
+            response = f"My diagnostic core is currently **{status}**. I use specialized **Deep Learning models** to detect pathogens at the cellular level and provide you with instant, curated cures."
         elif any(w in p for w in ["cure", "disease", "help", "sick", "yellow"]):
-            response = "If your crops look yellow or spotted, upload a photo! Our AI will identify the specific pathogen and give you a **Targeted Action Plan** with biological and chemical cures."
+            response = "Spotted a problem? Upload a clear photo! I will identify the specific pathogen (like **Rust** or **Blight**) and provide a **Precision Cure Plan** with biological and chemical recommendations."
         else:
-            response = "That's a great question! While I'm still learning, I recommend checking our **Regional Crop Guide** on the main dashboard for specific local advice, or asking me about 'VARI' or 'PDF Reports'."
+            response = "Excellent question! While I refine my knowledge, I recommend checking our **Regional Crop Guide** on the main dashboard for specific local advice, or asking me for a 'PDF Report' demo!"
         
         st.session_state.chat_history.append({"role": "bot", "content": response})
         st.rerun()
