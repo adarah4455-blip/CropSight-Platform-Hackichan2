@@ -595,9 +595,17 @@ with st.sidebar:
                     st.rerun()
 
     st.markdown("---")
-    # Show record count
-    saved_farms_count = len(user_farms)
-    st.info(f"📁 **{saved_farms_count}** Saved Farm Records")
+    st.markdown("### 🚜 Your Saved Lands")
+    if not user_farms:
+        st.caption("No farms recorded yet. Draw one on the map to start!")
+    else:
+        for f_name, f_lat, f_lon, f_bound, f_time in user_farms:
+            if st.button(f"📍 {f_name}", key=f"switch_{f_name}_{f_time}", use_container_width=True, help=f"Last updated: {f_time}"):
+                st.session_state.farm_boundary = json.loads(f_bound)
+                st.session_state.pdf_farm_name = f_name
+                st.session_state.farm_confirmed = True
+                st.success(f"Switching to {f_name}...")
+                st.rerun()
     if st.button("Logout", use_container_width=True):
         st.session_state.logged_in = False
         st.session_state.user_email = ""
