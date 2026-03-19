@@ -21,7 +21,8 @@ def init_db():
     c.execute('''
         CREATE TABLE IF NOT EXISTS users (
             email TEXT PRIMARY KEY,
-            password TEXT NOT NULL
+            password TEXT,
+            google_id TEXT
         )
     ''')
     c.execute('''
@@ -143,3 +144,19 @@ def mark_notif_read(notif_id):
     c.execute('UPDATE notifications SET status = "read" WHERE id = ?', (notif_id,))
     conn.commit()
     conn.close()
+
+def login_google_user(email, google_id):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    # Check if user exists
+    c.execute('SELECT email FROM users WHERE email = ?', (email,))
+    user = c.fetchone()
+    if not user:
+        # Create new Google user
+        c.execute('INSERT INTO users (email, google_id) VALUES (?, ?)', (email, google_id))
+    else:
+        # Update existing user with Google ID if not present
+        c.execute('UPDATE users SET google_id = ? WHERE email = ?', (google_id, email))
+    conn.commit()
+    conn.close()
+    return True

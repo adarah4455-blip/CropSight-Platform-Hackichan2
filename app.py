@@ -18,9 +18,14 @@ import datetime
 import requests
 
 # --- Global App Defaults (Previously in Sidebar) ---
-selected_crop = "Rice"  # Default crop type
 sh_client_id = "9014ff84-e5be-44a4-b866-caa7d576c8a0"
 sh_client_secret = "zlnN8FTFmxBmEFt6bSkNQcGM4kBqciPx"
+
+# --- Google OAuth Configuration ---
+# TO USE: Get your Client ID and Secret from Google Cloud Console
+# and paste them below.
+GOOGLE_CLIENT_ID = "YOUR_CLIENT_ID_HERE"
+GOOGLE_CLIENT_SECRET = "YOUR_CLIENT_SECRET_HERE"
 
 # --- Default Page Config ---
 st.set_page_config(
@@ -438,7 +443,7 @@ def clean_for_pdf(text):
         text = text.replace(k, v)
     return text.encode('latin-1', 'ignore').decode('latin-1')
 
-def create_pdf(email, current_farm_name, current_score, original, overlay, zones_df, tips, ai_diagnosis, ai_cure):
+def create_pdf(email, current_farm_name, selected_crop, current_score, original, overlay, zones_df, tips, ai_diagnosis, ai_cure):
     pdf = FPDF(orientation='L', unit='mm', format='A4')
     
     # --- Page 1: Portfolio Executive Summary ---
@@ -484,6 +489,7 @@ def create_pdf(email, current_farm_name, current_score, original, overlay, zones
     
     pdf.set_font("Arial", 'B', 16)
     pdf.set_text_color(50, 50, 50)
+    pdf.cell(0, 10, f"Farm Type / Crop: {clean_for_pdf(selected_crop)}", 0, 1, 'L')
     pdf.cell(0, 10, f"Current Health Score: {current_score}/100", 0, 1, 'L')
     pdf.ln(2)
     
@@ -578,6 +584,45 @@ if not st.session_state.logged_in:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown("<div class='animated-card' style='padding: 1rem 2rem 2rem 2rem; border-radius: 20px; background: rgba(255,255,255,0.9); box-shadow: 0 10px 30px rgba(123, 178, 132, 0.2); text-align: center;'>", unsafe_allow_html=True)
+        
+        # --- Google Sign-In Option ---
+        st.markdown("<h5 style='letter-spacing:1px; color:#588560;'>CONTINUE WITH GOOGLE</h5>", unsafe_allow_html=True)
+        if GOOGLE_CLIENT_ID == "YOUR_CLIENT_ID_HERE":
+            if st.button("🔵 Mock Google Login (For Demo)", use_container_width=True):
+                # Temporary demo login for hackathon testing
+                st.session_state.logged_in = True
+                st.session_state.user_email = "demo.farmer@gmail.com"
+                auth.login_google_user("demo.farmer@gmail.com", "mock_google_123")
+                st.success("Signed in with Google (Simulated)")
+                st.rerun()
+            st.caption("To use real Google Auth, please provide your Client ID in the app.py configuration.")
+        else:
+            try:
+                from streamlit_google_auth import Authenticate
+                authenticator = Authenticate(
+                    secret_names={'client_id': GOOGLE_CLIENT_ID, 'client_secret': GOOGLE_CLIENT_SECRET},
+                    cookie_name='cropsight_google_auth',
+                    key='cropsight_auth_key',
+                    cookie_expiry_days=30,
+                    redirect_uri='http://localhost:8501',
+                )
+                authenticator.check_authentification()
+                if st.session_state.get('connected'):
+                    user_info = st.session_state.get('user_info', {})
+                    if user_info:
+                        email = user_info.get('email')
+                        g_id = user_info.get('sub')
+                        auth.login_google_user(email, g_id)
+                        st.session_state.logged_in = True
+                        st.session_state.user_email = email
+                        st.rerun()
+                else:
+                    authenticator.login()
+            except Exception as e:
+                st.error(f"Google Auth Error: {str(e)}")
+
+        st.markdown("<div style='margin: 20px 0; border-top: 1px solid #eee; position: relative;'><span style='position:absolute; top:-12px; left:45%; background:white; padding: 0 10px; color:#999; font-size:0.8em;'>OR</span></div>", unsafe_allow_html=True)
+
         choice = st.radio("Select an option", ["Login", "Sign Up"], horizontal=True, label_visibility="collapsed")
         
         st.markdown("<br>", unsafe_allow_html=True)
@@ -623,7 +668,11 @@ with st.sidebar:
     st.markdown(f"### 👤 Profile")
     st.success(f"Logged in as:\n**{st.session_state.user_email}**")
     
-    # --- Farmer Mailbox ---
+    st.markdown("---")
+    st.markdown("### 🌾 Crop Selection")
+    crop_options = ["Rice", "Coconut", "Banana", "Arecanut", "Rubber", "Wheat", "Corn", "Sugarcane"]
+    selected_crop = st.selectbox("Select your crop type:", crop_options, index=0, help="Accurate diagnosis depends on selecting the correct crop type.")
+    st.markdown("---")
     st.markdown("---")
     st.markdown("### 📬 Farmer Mailbox")
     
@@ -1040,7 +1089,7 @@ with st.spinner("🛰️ Fetching 10m high-res imagery from Sentinel Hub..."):
                 st.write("**Save Your Intelligent Report**")
                 pdf_farm_name = st.text_input("Enter Farm Name for PDF:", farmer_name + "'s Farm", key="pdf_name")
                 if st.button("Compile Full Portfolio PDF Report", key="pdf_btn"):
-                    pdf_bytes = create_pdf(st.session_state.user_email, pdf_farm_name, overall_score, orig_rgb, overlay_rgb, zones_df, farmer_tips, ai_diagnosis, ai_cure)
+                    pdf_bytes = create_pdf(st.session_state.user_email, pdf_farm_name, selected_crop, overall_score, orig_rgb, overlay_rgb, zones_df, farmer_tips, ai_diagnosis, ai_cure)
                     st.download_button(
                         label="📄 Download Complete AI Portfolio Report (PDF)",
                         data=pdf_bytes,
