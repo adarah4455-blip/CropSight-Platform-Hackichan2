@@ -1,6 +1,7 @@
 import sqlite3
 import hashlib
 import os
+import json
 
 DB_PATH = 'users.db'
 
@@ -21,6 +22,18 @@ def init_db():
         CREATE TABLE IF NOT EXISTS users (
             email TEXT PRIMARY KEY,
             password TEXT NOT NULL
+        )
+    ''')
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS farms (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT,
+            farm_name TEXT,
+            latitude REAL,
+            longitude REAL,
+            boundary_json TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (email) REFERENCES users (email)
         )
     ''')
     conn.commit()
@@ -48,3 +61,22 @@ def login_user(email, password):
     if user and _verify_password(user[0], password):
         return True
     return False
+
+def save_farm(email, farm_name, lat, lon, boundary):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    boundary_json = json.dumps(boundary)
+    c.execute('''
+        INSERT INTO farms (email, farm_name, latitude, longitude, boundary_json)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (email, farm_name, lat, lon, boundary_json))
+    conn.commit()
+    conn.close()
+
+def get_user_farms(email):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT farm_name, latitude, longitude, boundary_json, timestamp FROM farms WHERE email = ? ORDER BY timestamp DESC', (email,))
+    farms = c.fetchall()
+    conn.close()
+    return farms

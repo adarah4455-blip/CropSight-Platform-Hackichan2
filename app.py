@@ -13,6 +13,7 @@ from folium.plugins import Draw
 from streamlit_folium import st_folium
 import os
 import base64
+import json
 import datetime
 import requests
 
@@ -559,6 +560,10 @@ with st.sidebar:
     st.markdown(f"### 👤 Profile")
     st.success(f"Logged in as:\n**{st.session_state.user_email}**")
     
+    # Show record count
+    saved_farms_count = len(auth.get_user_farms(st.session_state.user_email))
+    st.info(f"📁 **{saved_farms_count}** Saved Farm Records")
+    
     st.markdown("---")
     if st.button("Logout", use_container_width=True):
         st.session_state.logged_in = False
@@ -593,6 +598,21 @@ if not st.session_state.farm_confirmed:
     col_setup1, col_setup2, col_setup3 = st.columns([1, 3, 1])
     with col_setup2:
         st.markdown(f"👨‍🌾 **Welcome, {st.session_state.farmer_name}!**")
+
+        # --- Load Existing Farm ---
+        saved_farms = auth.get_user_farms(st.session_state.user_email)
+        if saved_farms:
+            with st.expander("📖 Load a Saved Farm Record"):
+                cols = st.columns([3, 1])
+                farm_to_load = cols[0].selectbox("Select from your records:", [f"{f[0]} ({f[4]})" for f in saved_farms])
+                if cols[1].button("Load", use_container_width=True):
+                    # Find the selected farm data
+                    idx = [f"{f[0]} ({f[4]})" for f in saved_farms].index(farm_to_load)
+                    f_name, f_lat, f_lon, f_bound, f_time = saved_farms[idx]
+                    st.session_state.farm_boundary = json.loads(f_bound)
+                    st.session_state.farm_confirmed = True
+                    st.success(f"Loaded {f_name} successfully!")
+                    st.rerun()
 
         st.markdown("#### 📍 Draw your farm boundary on the map")
         st.caption("Use the rectangle ▭ or polygon ⬠ tool on the left side of the map to outline your farm area.")
@@ -631,18 +651,27 @@ if not st.session_state.farm_confirmed:
             center_lon = sum(lons) / len(lons)
             st.success(f"📌 Farm area selected — center at **({center_lat:.4f}, {center_lon:.4f})** with **{len(drawn_boundary)-1} vertices**")
         else:
-            st.info("Draw a rectangle or polygon on the map to define your farm boundary.")
+            st.info("Draw a rectangle or polygon on the map to define your farm area.")
 
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("✅ Confirm Farm Area & Analyse", use_container_width=True, key="confirm_farm_btn"):
             if drawn_boundary:
-                # Name is already set in session state
                 st.session_state.farm_boundary = drawn_boundary
                 st.session_state.farm_confirmed = True
+                
+                # Save to Database as a permanent record
+                try:
+                    farm_name = f"Managed Land {len(saved_farms) + 1}"
+                    center_lat = sum([p[0] for p in drawn_boundary]) / len(drawn_boundary)
+                    center_lon = sum([p[1] for p in drawn_boundary]) / len(drawn_boundary)
+                    auth.save_farm(st.session_state.user_email, farm_name, center_lat, center_lon, drawn_boundary)
+                    st.success(f"Farm '{farm_name}' has been securely recorded!")
+                except Exception as e:
+                    st.warning(f"Note: Farm recorded to session but DB sync failed: {str(e)}")
+                    
                 st.rerun()
             else:
-                if not drawn_boundary:
-                    st.warning("Please draw a rectangle or polygon on the map to define your farm area.")
+                st.warning("Please draw a rectangle or polygon on the map to define your farm area.")
 
     st.markdown("""
     <div class='footer'>
