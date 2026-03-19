@@ -65,6 +65,13 @@ st.markdown("""
     .animated-image img { border-radius: 24px; box-shadow: 0 10px 30px rgba(123, 178, 132, 0.2); }
     .animated-image { animation: scaleIn 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
     
+    /* Hide Streamlit Default UI Elements (White Bars) */
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+    .stAppDeployButton {display:none;}
+    div[data-testid="stHeader"] {background:transparent;}
+    
     /* Typography & Cute Styling */
     h1, h2, h3, h4 { color: #588560 !important; font-family: 'Comic Sans MS', 'Chalkboard SE', 'Segoe UI', cursive, sans-serif; letter-spacing: -0.5px; }
     p, span, div, text, li { color: #4a5d4a; }
