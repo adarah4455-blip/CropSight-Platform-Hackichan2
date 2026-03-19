@@ -578,8 +578,8 @@ if not st.session_state.logged_in:
 
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.markdown("<div class='animated-card' style='padding: 2rem; border-radius: 20px; background: rgba(255,255,255,0.9); box-shadow: 0 10px 30px rgba(123, 178, 132, 0.2); text-align: center;'>", unsafe_allow_html=True)
-        choice = st.radio("Select an option", ["Login", "Sign Up"], horizontal=True)
+        st.markdown("<div class='animated-card' style='padding: 1rem 2rem 2rem 2rem; border-radius: 20px; background: rgba(255,255,255,0.9); box-shadow: 0 10px 30px rgba(123, 178, 132, 0.2); text-align: center;'>", unsafe_allow_html=True)
+        choice = st.radio("Select an option", ["Login", "Sign Up"], horizontal=True, label_visibility="collapsed")
         
         st.markdown("<br>", unsafe_allow_html=True)
         
