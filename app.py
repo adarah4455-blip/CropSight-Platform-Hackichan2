@@ -432,23 +432,59 @@ def clean_for_pdf(text):
         text = text.replace(k, v)
     return text.encode('latin-1', 'ignore').decode('latin-1')
 
-def create_pdf(farm_name, overall_score, original, overlay, zones_df, tips, ai_diagnosis, ai_cure):
+def create_pdf(email, current_farm_name, current_score, original, overlay, zones_df, tips, ai_diagnosis, ai_cure):
     pdf = FPDF(orientation='L', unit='mm', format='A4')
+    
+    # --- Page 1: Portfolio Executive Summary ---
     pdf.add_page()
-    pdf.set_font("Arial", 'B', 24)
+    pdf.set_font("Arial", 'B', 26)
     pdf.set_text_color(88, 133, 96)
-    pdf.cell(0, 15, "CropSight - Farmer Action Report", 0, 1, 'C')
+    pdf.cell(0, 15, "CropSight - Master Portfolio Report", 0, 1, 'C')
+    pdf.set_font("Arial", 'B', 14)
+    pdf.set_text_color(100, 100, 100)
+    pdf.cell(0, 10, f"Account Holder: {clean_for_pdf(email)} | Generated: {time.strftime('%Y-%m-%d')}", 0, 1, 'C')
+    pdf.ln(10)
+
+    # Portfolio Table
+    pdf.set_font("Arial", 'B', 14)
+    pdf.set_fill_color(240, 240, 240)
+    pdf.cell(0, 10, " 🌍 All Managed Land Records Summary", 0, 1, 'L', 1)
+    pdf.set_font("Arial", 'B', 12)
+    p_cols = [70, 40, 60, 100]
+    p_headers = ["Farm/Field Name", "Avg Score", "Last Activity", "Status Indicator"]
+    for w, h in zip(p_cols, p_headers):
+        pdf.cell(w, 10, clean_for_pdf(h), 1, 0, 'C')
+    pdf.ln()
+    
+    pdf.set_font("Arial", '', 11)
+    all_farms = auth.get_user_farms(email)
+    for f_name, lat, lon, _, ts in all_farms:
+        hist = auth.get_analysis_history(email, f_name)
+        avg_s = int(sum([h[0] for h in hist])/len(hist)) if hist else "N/A"
+        last_s = hist[-1][0] if hist else 0
+        status = "🟢 Healthy" if last_s > 70 else "🟡 Stress" if last_s > 40 else "🔴 Priority"
+        
+        pdf.cell(p_cols[0], 10, clean_for_pdf(f_name), 1, 0, 'C')
+        pdf.cell(p_cols[1], 10, f"{avg_s}%", 1, 0, 'C')
+        pdf.cell(p_cols[2], 10, clean_for_pdf(ts[:10]), 1, 0, 'C')
+        pdf.cell(p_cols[3], 10, clean_for_pdf(status), 1, 0, 'C')
+        pdf.ln()
+    
+    # --- Page 2: Detailed Analysis for Current Active Farm ---
+    pdf.add_page()
+    pdf.set_font("Arial", 'B', 22)
+    pdf.set_text_color(88, 133, 96)
+    pdf.cell(0, 15, f"Analysis Detail: {clean_for_pdf(current_farm_name)}", 0, 1, 'L')
+    
     pdf.set_font("Arial", 'B', 16)
     pdf.set_text_color(50, 50, 50)
-    pdf.cell(0, 10, f"Overall Crop Health Score: {overall_score}/100", 0, 1, 'C')
-    pdf.set_font("Arial", 'I', 12)
-    pdf.cell(0, 8, clean_for_pdf(f"Farm/Field Name: {farm_name} | Date: {time.strftime('%Y-%m-%d')}"), 0, 1, 'C')
-    pdf.ln(5)
+    pdf.cell(0, 10, f"Current Health Score: {current_score}/100", 0, 1, 'L')
+    pdf.ln(2)
     
     # AI Diagnosis Section in PDF
     pdf.set_font("Arial", 'B', 14)
     pdf.set_fill_color(240, 240, 240)
-    pdf.cell(0, 10, "AI Pathogen & Stress Diagnostic Report", 0, 1, 'L', 1)
+    pdf.cell(0, 10, " AI Pathogen & Stress Diagnostic Report", 0, 1, 'L', 1)
     pdf.set_font("Arial", 'B', 12)
     pdf.set_text_color(231, 76, 60) # Red
     pdf.cell(0, 8, f"Detected Condition: {clean_for_pdf(ai_diagnosis)}", 0, 1)
@@ -462,22 +498,22 @@ def create_pdf(farm_name, overall_score, original, overlay, zones_df, tips, ai_d
         Image.fromarray(overlay).save(f_over.name)
         y_pos = pdf.get_y()
         pdf.set_font("Arial", 'B', 14)
-        pdf.text(10, y_pos, "1. Original Photo")
-        pdf.text(150, y_pos, "2. CropSight Health Overlay")
+        pdf.text(10, y_pos, "1. Original Imagery (Current)")
+        pdf.text(150, y_pos, "2. Health Zone Overlay (Current)")
         pdf.image(f_orig.name, x=10, y=y_pos+5, w=130)
         pdf.image(f_over.name, x=150, y=y_pos+5, w=130)
         img_aspect = original.shape[0]/original.shape[1]
         pdf.set_y(y_pos + 5 + (130 * img_aspect) + 10)
         
     pdf.set_font("Arial", 'B', 14)
-    pdf.cell(0, 10, "3. Intelligent Farmer Guidance", 0, 1)
+    pdf.cell(0, 10, "3. Targeted Support Actions", 0, 1)
     pdf.set_font("Arial", '', 12)
     for tip in tips:
         pdf.cell(0, 8, f"- {clean_for_pdf(tip)}", 0, 1)
         
     pdf.ln(5)
     pdf.set_font("Arial", 'B', 14)
-    pdf.cell(0, 10, "4. Specific Zone Actions", 0, 1)
+    pdf.cell(0, 10, "4. Physical Zone Breakdown", 0, 1)
     pdf.set_font("Arial", 'B', 12)
     col_widths = [20, 30, 45, 140]
     headers = ["Zone", "Score", "Severity", "Farmer Action"]
@@ -491,6 +527,27 @@ def create_pdf(farm_name, overall_score, original, overlay, zones_df, tips, ai_d
         pdf.cell(col_widths[2], 10, clean_for_pdf(row['Severity']), 1, 0, 'C')
         pdf.cell(col_widths[3], 10, clean_for_pdf(row['Farmer Action']), 1, 0, 'L')
         pdf.ln()
+        
+    # --- Page 3+: Historical Data Tables for All Farms ---
+    for f_name, lat, lon, _, _ in all_farms:
+        if f_name == current_farm_name: continue
+        pdf.add_page()
+        pdf.set_font("Arial", 'B', 18)
+        pdf.cell(0, 10, f"Historical Context: {clean_for_pdf(f_name)}", 0, 1)
+        pdf.set_font("Arial", '', 12)
+        pdf.cell(0, 10, f"Location: {lat:.4f}, {lon:.4f}", 0, 1)
+        pdf.ln(5)
+        
+        hist = auth.get_analysis_history(email, f_name)
+        if hist:
+            pdf.set_font("Arial", 'B', 12)
+            pdf.cell(60, 10, "Scan Date", 1, 0, 'C')
+            pdf.cell(60, 10, "Recorded Score", 1, 1, 'C')
+            pdf.set_font("Arial", '', 11)
+            for s, t in reversed(hist[-10:]): # Show last 10 scans
+                pdf.cell(60, 10, clean_for_pdf(t[:16]), 1, 0, 'C')
+                pdf.cell(60, 10, f"{s}%", 1, 1, 'C')
+    
     # Ensure return is immutable bytes for Streamlit caching/downloading
     return bytes(pdf.output(dest='S'))
 
@@ -976,12 +1033,12 @@ with st.spinner("🛰️ Fetching 10m high-res imagery from Sentinel Hub..."):
             with st.container():
                 st.write("**Save Your Intelligent Report**")
                 pdf_farm_name = st.text_input("Enter Farm Name for PDF:", farmer_name + "'s Farm", key="pdf_name")
-                if st.button("Compile PDF Data", key="pdf_btn"):
-                    pdf_bytes = create_pdf(pdf_farm_name, overall_score, orig_rgb, overlay_rgb, zones_df, farmer_tips, ai_diagnosis, ai_cure)
+                if st.button("Compile Full Portfolio PDF Report", key="pdf_btn"):
+                    pdf_bytes = create_pdf(st.session_state.user_email, pdf_farm_name, overall_score, orig_rgb, overlay_rgb, zones_df, farmer_tips, ai_diagnosis, ai_cure)
                     st.download_button(
-                        label="📄 Download AI Diagnostic & Action Report (PDF)",
+                        label="📄 Download Complete AI Portfolio Report (PDF)",
                         data=pdf_bytes,
-                        file_name=f"CropSight_AI_Report_{pdf_farm_name.replace(' ', '_')}.pdf",
+                        file_name=f"CropSight_Full_Portfolio_{st.session_state.user_email.split('@')[0]}.pdf",
                         mime="application/pdf",
                         use_container_width=True
                     )
