@@ -183,42 +183,24 @@ st.markdown("""
     
     .footer { text-align: center; margin-top: 70px; color: #7bb284; font-size: 15px; font-weight: 700; background: rgba(255,255,255,0.7); padding: 15px; border-radius: 20px;}
 
-    /* Floating Chatbot Bubble */
-    .floating-chat-bubble {
-        position: fixed;
-        bottom: 30px;
-        right: 30px;
-        z-index: 1001;
-        width: 70px;
-        height: 70px;
-        background: #7bb284;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 8px 30px rgba(0,0,0,0.3);
-        border: 3px solid white;
-        cursor: pointer;
-        animation: pulseBubble 2s infinite;
-        font-size: 35px;
+    /* ChatGPT-Style Chat Interface */
+    .chat-container {
+        background: #ffffff;
+        border-radius: 15px;
+        padding: 20px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+        border: 1px solid #e0e0e0;
+        margin-top: 30px;
     }
-    @keyframes pulseBubble {
-        0% { transform: scale(1); box-shadow: 0 8px 30px rgba(123, 178, 132, 0.4); }
-        50% { transform: scale(1.1); box-shadow: 0 8px 45px rgba(123, 178, 132, 0.7); }
-        100% { transform: scale(1); box-shadow: 0 8px 30px rgba(123, 178, 132, 0.4); }
-    }
-    .chat-badge {
-        position: absolute;
-        top: -5px;
-        right: -5px;
-        background: #e74c3c;
-        color: white;
-        font-size: 12px;
-        padding: 4px 8px;
+    .chat-message-gpt {
+        padding: 15px;
+        margin-bottom: 15px;
         border-radius: 10px;
-        font-weight: bold;
-        border: 2px solid white;
+        font-size: 1.05rem;
+        line-height: 1.6;
     }
+    .user-msg-gpt { background: #f7f7f8; border-left: 5px solid #7bb284; }
+    .bot-msg-gpt { background: #ffffff; border-left: 5px solid #2c3e50; }
     
     /* Modern Compact Uploader */
     .stFileUploader section { padding: 0 !important; }
@@ -1246,103 +1228,106 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- Premium Floating AI Assistant UI ---
-st.markdown("<br><br><div class='footer'>© 2026 CropSight Aerial Intelligence Hub • Developed for Global Hackathon</div>", unsafe_allow_html=True)
-
-# 🤖 Floating AI Pulse Bubble (Visual Highlight)
-st.markdown("""
-<div class='floating-chat-bubble'>
-    🤖
-    <div class='chat-badge'>AI</div>
-</div>
-""", unsafe_allow_html=True)
-
-# Actual Interaction remains in a prominent expander for Streamlit consistency
+# --- ChatGPT-Style AI Assistant UI ---
 st.markdown("---")
-with st.expander("💬 **Open AI Assistant (Cropie)**", expanded=False):
-    st.info("👋 Hello! I'm **Cropie**. You can ask me questions or **upload a close-up photo** of a crop problem for an instant AI diagnosis!")
-    
-    # Use the generated cropie icon if available
-    avatar_bot = "C:/Users/USER/.gemini/antigravity/brain/4c6c4290-47d0-490c-a732-4101569940ed/cropie_ai_assistant_icon_1773901378661.png"
-    if not os.path.exists(avatar_bot):
-        avatar_bot = "🌱"
-    
-    # 💡 Suggested Quick Actions
-    st.write("Suggested Actions:")
-    sq1, sq2, sq3 = st.columns(3)
-    with sq1:
-        if st.button("🌡️ What is VARI?", key="q_vari", use_container_width=True):
-            st.session_state.chat_history.append({"role": "user", "content": "What is VARI?"})
-            st.session_state.chat_history.append({"role": "bot", "content": "VARI stands for **Visible Atmospherically Resistant Index**. It's a high-precision formula we use to detect plant vigor using standard RGB drone photos—no expensive infrared camera needed!"})
-            st.rerun()
-    with sq2:
-        if st.button("📊 Show Reports", key="q_report", use_container_width=True):
-            st.session_state.chat_history.append({"role": "user", "content": "How do I see my reports?"})
-            st.session_state.chat_history.append({"role": "bot", "content": "You can find your **Master Portfolio Report** at the bottom of this page. It compiles all your managed farms into a professional PDF document."})
-            st.rerun()
-    with sq3:
-        if st.button("🛡️ AI Status", key="q_status", use_container_width=True):
-            status = "ONLINE ✨" if ai_pipeline else "OFFLINE (Fallback Active) ⚠️"
-            st.session_state.chat_history.append({"role": "user", "content": "Is the AI online?"})
-            st.session_state.chat_history.append({"role": "bot", "content": f"My diagnostic core is currently **{status}**. I'm ready to analyze your close-up photos!"})
-            st.rerun()
+st.markdown("<h2 style='text-align: center; color: #2c3e50;'>🤖 CropSight GPT Assistant</h2>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #7f8c8d;'>Your personalized agricultural intelligence hub.</p>", unsafe_allow_html=True)
 
-    # 📸 Chat-based Image Upload with Modern "+" Icon Layout
-    col_up, col_chat = st.columns([1, 5])
-    with col_up:
-        chat_upload = st.file_uploader("➕", type=["jpg", "png", "jpeg"], key="chat_img_up", label_visibility="collapsed")
+with st.container():
+    st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
     
-    if chat_upload:
-        if 'last_chat_upload' not in st.session_state or st.session_state.last_chat_upload != chat_upload.name:
-            st.session_state.last_chat_upload = chat_upload.name
-            with st.spinner("Cropie is analyzing your photo..."):
-                img_bytes = chat_upload.read()
-                ai_label, ai_conf = ai_crop_analysis(img_bytes)
-                diag, cure = get_ai_diagnosis(selected_crop, 50, None, ai_label, ai_conf)
-                
-                st.session_state.chat_history.append({"role": "user", "content": f"I've uploaded a photo: **{chat_upload.name}**"})
-                st.session_state.chat_history.append({"role": "bot", "content": f"I've analyzed your photo! 🕵️‍♂️ Based on my Deep Learning vision, I've detected: **{diag}** (Confidence: {ai_conf*100:.1f}%).\n\n**Recommended Cure:** {cure}"})
-                st.rerun()
+    # Render Chat History (Newest at Bottom for ChatGPT feel)
+    for msg in st.session_state.chat_history:
+        role_label = "👤 **You**" if msg["role"] == "user" else "🌱 **Cropie**"
+        bg_class = "user-msg-gpt" if msg["role"] == "user" else "bot-msg-gpt"
+        st.markdown(f"<div class='chat-message-gpt {bg_class}'>{role_label}<br>{msg['content']}</div>", unsafe_allow_html=True)
+    
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    # Chat Input 
-    with col_chat:
-        if prompt := st.text_input("", placeholder="Ask Cropie anything...", key="main_chat_input_text", label_visibility="collapsed"):
-            st.session_state.chat_history.append({"role": "user", "content": prompt})
-            
-            # Context-Aware Intelligence Logic (Fixing NameError)
-            active_farm = st.session_state.get('pdf_farm_name', 'your managed land')
-            p = prompt.lower()
-            if any(w in p for w in ["hi", "hello", "hey", "who are you"]):
-                response = f"Hello! I'm **Cropie**, your personal agronomist for **{active_farm}**. I'm currently monitoring your **{selected_crop}** crops. How can I assist you today?"
-            elif any(w in p for w in ["what", "how", "site", "platform"]):
-                response = "CropSight is a **Next-Gen Aerial Action Platform**. We use specialized **Vision Transformers** and **Remote Sensing** to transform drone/mobile photos into actionable agricultural intelligence."
-            elif "vari" in p:
-                response = "VARI (Visible Atmospherically Resistant Index) is the scientific formula we use to detect plant vigor without needing expensive multispectral cameras. It's high-tech scouting in your pocket!"
-            elif any(w in p for w in ["health", "score", "percent"]):
-                response = f"Your health score for **{selected_crop}** on **{active_farm}** is a high-precision metric. Scores above 70% indicate optimal growth."
-            elif any(w in p for w in ["save", "record", "data", "history"]):
-                response = f"All records for **{active_farm}** are securely indexed in our **Blockchain-Ready Farm Ledger**."
-            elif any(w in p for w in ["pdf", "report", "download", "export"]):
-                response = "Our **Master Portfolio Report** can be exported as a professional PDF. You'll find the download button at the bottom of the analysis page."
-            elif any(w in p for w in ["cpu", "gpu", "ai", "model", "diagnos"]):
-                status = "ONLINE ✨" if ai_pipeline else "OFFLINE (Fallback Active) ⚠️"
-                response = f"My diagnostic core is currently **{status}**. I use specialized **Deep Learning models** to detect pathogens at the cellular level."
-            elif any(w in p for w in ["cure", "disease", "help", "sick", "yellow"]):
-                response = f"Spotted a problem in your **{selected_crop}**? Upload a clear photo! I will identify the specific pathogen and provide a **Precision Cure Plan**."
-            else:
-                response = "Excellent question! While I refine my knowledge, I recommend checking our **Regional Crop Guide** on the main dashboard for specific local advice!"
-            
-            st.session_state.chat_history.append({"role": "bot", "content": response})
-            st.rerun()
+# 📸 Input Area at the Bottom
+st.markdown("<br>", unsafe_allow_html=True)
+col_up, col_chat, col_clear = st.columns([1, 6, 1])
 
-    if st.button("🧹 Clear Chat History", key="clear_chat", use_container_width=True):
+with col_up:
+    chat_upload = st.file_uploader("➕", type=["jpg", "png", "jpeg"], key="chat_img_up_gpt", label_visibility="collapsed")
+
+with col_chat:
+    if prompt := st.text_input("", placeholder="Message Cropie...", key="gpt_chat_input", label_visibility="collapsed"):
+        st.session_state.chat_history.append({"role": "user", "content": prompt})
+        
+        # ChatGPT-Style Structured Intelligence Logic
+        active_farm = st.session_state.get('pdf_farm_name', 'your managed land')
+        p = prompt.lower()
+        
+        if any(w in p for w in ["hi", "hello", "hey"]):
+            response = f"""
+### 👋 Welcome to CropSight Intelligence
+Hello! I'm **Cropie**, your personal agronomist for **{active_farm}**.
+
+I am currently monitoring your **{selected_crop}** crops. Here is how I can assist you:
+*   **Visual Diagnostics**: Upload a close-up photo using the `+` icon.
+*   **VARI Analysis**: I can explain your field's vegetation vigor.
+*   **Technical Reports**: Ask me about downloading your Master Portfolio.
+
+How can I help you optimize your harvest today?
+"""
+        elif "vari" in p:
+            response = """
+### 🌡️ Understanding VARI
+**Visible Atmospherically Resistant Index (VARI)** is our core remote sensing metric.
+
+*   **Science**: It uses standard RGB bands to estimate chlorophyll content.
+*   **Benefit**: You get specialized vegetation mapping without needing expensive multispectral (NIR) hardware.
+*   **Result**: High-vigor areas appear bright green, indicating strong photosynthesis.
+"""
+        elif any(w in p for w in ["health", "score", "percent"]):
+            response = f"""
+### 📊 Health Metrics for {selected_crop}
+Your latest health scores for **{active_farm}** are processed using high-precision spatial analysis.
+
+*   **70% - 100%**: **Optimal**. Your crops are thriving.
+*   **40% - 70%**: **Caution**. Early signs of stress detected.
+*   **Below 40%**: **Alert**. Immediate tactical intervention required.
+"""
+        elif any(w in p for w in ["pdf", "report", "download"]):
+            response = """
+### 📄 Exporting Your Intelligence
+You can download your **Master Portfolio Report** directly from the main dashboard.
+
+This professional document includes:
+1.  **Full Geospatial History** of your managed lands.
+2.  **AI-Generated Pathological Cures**.
+3.  **Historical Trend Analysis**.
+"""
+        elif any(w in p for w in ["cure", "disease", "help", "sick"]):
+            response = f"""
+### 🛡️ Disease Treatment Protocols
+If you notice anomalies in your **{selected_crop}**, I recommend immediate visual analysis.
+
+**Steps to follow:**
+1.  Click the `+` icon on the left.
+2.  Upload a clear, close-up photo of the affected area.
+3.  I will provide a **Precision Cure Plan** with biological and chemical recommendations.
+"""
+        else:
+            response = f"I've noted your query regarding **{prompt}**. While I refine my specific knowledge on this topic, I recommend reviewing the **Regional Crop Guide** on your dashboard for immediate local insights."
+        
+        st.session_state.chat_history.append({"role": "bot", "content": response})
+        st.rerun()
+
+with col_clear:
+    if st.button("🧹", key="clear_gpt", help="Clear Chat history"):
         st.session_state.chat_history = [{"role": "bot", "content": "Chat history cleared. How can I help you now?"}]
         st.rerun()
 
-    st.markdown("<br>", unsafe_allow_html=True)
-    # Render Chat History (Newest at Top for better UX in small expander)
-    for msg in reversed(st.session_state.chat_history):
-        if msg["role"] == "user":
-            st.chat_message("user", avatar="👨‍🌾").write(msg["content"])
-        else:
-            st.chat_message("assistant", avatar=avatar_bot).write(msg["content"])
+if chat_upload:
+    if 'last_chat_upload' not in st.session_state or st.session_state.last_chat_upload != chat_upload.name:
+        st.session_state.last_chat_upload = chat_upload.name
+        with st.spinner("Analyzing high-resolution sample..."):
+            img_bytes = chat_upload.read()
+            ai_label, ai_conf = ai_crop_analysis(img_bytes)
+            diag, cure = get_ai_diagnosis(selected_crop, 50, None, ai_label, ai_conf)
+            
+            st.session_state.chat_history.append({"role": "user", "content": f"Uploaded visual sample: **{chat_upload.name}**"})
+            st.session_state.chat_history.append({"role": "bot", "content": f"### 🕵️‍♂️ AI Vision Result\n\n**Diagnosis**: {diag}\n**Confidence**: {ai_conf*100:.1f}%\n\n**Action Plan**:\n{cure}"})
+            st.rerun()
