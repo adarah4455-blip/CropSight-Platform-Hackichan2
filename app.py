@@ -32,18 +32,14 @@ GOOGLE_CLIENT_SECRET = "YOUR_CLIENT_SECRET_HERE"
 # --- AI Model Initialization (Hugging Face) ---
 @st.cache_resource
 def load_ai_model():
-    # linkanjarad/mobilenet_v2_1.0_224-plant-disease-identification is lightweight and accurate
-    return pipeline("image-classification", model="linkanjarad/mobilenet_v2_1.0_224-plant-disease-identification")
+    # link98/crop-disease-detection is a stable and accurate model for image classification
+    return pipeline("image-classification", model="link98/crop-disease-detection")
 
-ai_pipeline = load_ai_model()
-
-# --- AI Model Initialization (Hugging Face) ---
-@st.cache_resource
-def load_ai_model():
-    # linkanjarad/mobilenet_v2_1.0_224-plant-disease-identification is lightweight and accurate
-    return pipeline("image-classification", model="linkanjarad/mobilenet_v2_1.0_224-plant-disease-identification")
-
-ai_pipeline = load_ai_model()
+try:
+    ai_pipeline = load_ai_model()
+except Exception as e:
+    st.warning(f"AI Diagnostic Engine is currently offline (Model Load Error). Using Remote Sensing Fallback. {str(e)}")
+    ai_pipeline = None
 
 # --- Default Page Config ---
 st.set_page_config(
@@ -228,6 +224,8 @@ def ai_crop_analysis(image_bytes):
     """
     Analyzes crop image using a Deep Learning model from Hugging Face.
     """
+    if ai_pipeline is None:
+        return "AI Diagnostic Engine Offline (Using VARI Fallback)", 0.0
     try:
         img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         results = ai_pipeline(img)
