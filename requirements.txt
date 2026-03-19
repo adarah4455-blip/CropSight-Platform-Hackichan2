@@ -8,3 +8,6 @@ streamlit-folium
 streamlit-google-auth
 numpy
 requests
+transformers
+torch
+torchvision

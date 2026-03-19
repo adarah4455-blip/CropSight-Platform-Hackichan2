@@ -16,6 +16,8 @@ import base64
 import json
 import datetime
 import requests
+from transformers import pipeline
+import torch
 
 # --- Global App Defaults (Previously in Sidebar) ---
 sh_client_id = "9014ff84-e5be-44a4-b866-caa7d576c8a0"
@@ -26,6 +28,22 @@ sh_client_secret = "zlnN8FTFmxBmEFt6bSkNQcGM4kBqciPx"
 # and paste them below.
 GOOGLE_CLIENT_ID = "YOUR_CLIENT_ID_HERE"
 GOOGLE_CLIENT_SECRET = "YOUR_CLIENT_SECRET_HERE"
+
+# --- AI Model Initialization (Hugging Face) ---
+@st.cache_resource
+def load_ai_model():
+    # linkanjarad/mobilenet_v2_1.0_224-plant-disease-identification is lightweight and accurate
+    return pipeline("image-classification", model="linkanjarad/mobilenet_v2_1.0_224-plant-disease-identification")
+
+ai_pipeline = load_ai_model()
+
+# --- AI Model Initialization (Hugging Face) ---
+@st.cache_resource
+def load_ai_model():
+    # linkanjarad/mobilenet_v2_1.0_224-plant-disease-identification is lightweight and accurate
+    return pipeline("image-classification", model="linkanjarad/mobilenet_v2_1.0_224-plant-disease-identification")
+
+ai_pipeline = load_ai_model()
 
 # --- Default Page Config ---
 st.set_page_config(
@@ -206,6 +224,21 @@ def analyze_image(image_bytes):
     
     return original_rgb, overlay, health_smoothed, overall_score
 
+def ai_crop_analysis(image_bytes):
+    """
+    Analyzes crop image using a Deep Learning model from Hugging Face.
+    """
+    try:
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        results = ai_pipeline(img)
+        # Results is a list of dicts: [{'label': '...", 'score': ...}, ...]
+        top_prediction = results[0]
+        label = top_prediction['label']
+        confidence = top_prediction['score']
+        return label, confidence
+    except Exception as e:
+        return f"AI Logic Offline: {str(e)}", 0.0
+
 def get_exif_location(img_bytes):
     try:
         img = Image.open(io.BytesIO(img_bytes))
@@ -283,11 +316,40 @@ def generate_tips(overall_score, zones_df):
         
     return tips
 
-def get_ai_diagnosis(crop_type, overall_score, zones_df):
+def get_ai_diagnosis(crop_type, overall_score, zones_df, ai_label=None, ai_confidence=0.0):
     """
-    Simulated AI Engine that identifies potential pathogens and diseases 
-    based on crop type and detected stress patterns.
+    Combines rule-based Remote Sensing (VARI) with Deep Learning results
+    from the Hugging Face plant classification model.
     """
+    # 1. Start with the AI Model result if it has high confidence
+    if ai_label and ai_confidence > 0.4:
+        # Clean up labels like "Apple___Apple_scab" -> "Apple Scab"
+        display_label = ai_label.split("__")[-1].replace("_", " ") if "___" in ai_label else ai_label
+        
+        # Mapping common model outputs to professional cures
+        cures = {
+            "Apple scab": "Apply fungicide like Captan or Myclobutanil. Clear fallen leaves to prevent overwintering spores.",
+            "Black rot": "Prune out infected branches and fruit. Use copper-based fungicides during the growing season.",
+            "Cedar apple rust": "Remove nearby juniper trees if possible. Apply protective fungicide sprays in early spring.",
+            "Bacterial spot": "Avoid overhead watering. Apply copper sprays early in the season to reduce bacterial load.",
+            "Late blight": "Increase air circulation. Apply fungicides like Chlorothalonil or Mancozeb immediately.",
+            "Early blight": "Rotate crops and remove plant debris. Apply copper or sulfur-based fungicides.",
+            "Leaf mold": "Reduce humidity in the greenhouse/field. Improve ventilation and use resistant varieties.",
+            "Septoria leaf spot": "Avoid irrigation from above. Mulch to prevent spores splashing from soil onto leaves.",
+            "Spider mites": "Apply neem oil or insecticidal soap. Increase humidity if in a dry environment.",
+            "Target Spot": "Remove lower leaves to improve airflow. Apply fungicides specifically labeled for target spot.",
+            "Yellow Leaf Curl Virus": "Control whitefly populations using yellow sticky traps or insecticidal soaps.",
+            "Mosaic virus": "No cure for infected plants; remove and destroy immediately to prevent spread via aphids.",
+            "Powdery mildew": "Apply sulfur-based fungicides or neem oil. Ensure plants have adequate spacing for airflow.",
+            "Rust": "Remove infected leaves. Apply sulfur or copper-based fungicides at first sign of infection.",
+            "Leaf scorch": "Ensure deep watering during dry spells. Check for root damage or high soil salinity.",
+            "Healthy": "No disease detected. Maintain current irrigation and nutrient balance."
+        }
+        
+        cure = cures.get(display_label, "Consult an agile agronomist. Maintain balanced NPK and ensure proper field drainage.")
+        return f"{display_label} (AI Verified)", cure
+
+    # 2. Fallback to VARI-based rule matching if AI confidence is low
     severities = zones_df['Severity'].tolist()
     has_severe = "Severe Stress" in severities
     has_moderate = "Moderate Stress" in severities
@@ -935,8 +997,9 @@ with st.spinner("🛰️ Fetching 10m high-res imagery from Sentinel Hub..."):
             # Refresh history for chart
             history = auth.get_analysis_history(st.session_state.user_email, farm_name_for_hist)
 
-        # --- AI Disease Diagnosis ---
-        ai_diagnosis, ai_cure = get_ai_diagnosis(selected_crop, overall_score, zones_df)
+        # --- AI Disease Diagnosis (Deep Learning) ---
+        ai_label, ai_conf = ai_crop_analysis(bytes(image_bytes))
+        ai_diagnosis, ai_cure = get_ai_diagnosis(selected_crop, overall_score, zones_df, ai_label, ai_conf)
 
         st.markdown(f"""
         <div class="diagnosis-card" style="border-left: 10px solid {'#e74c3c' if overall_score < 40 else '#f1c40f' if overall_score < 70 else '#2ecc71'}; background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 25px;">
@@ -944,7 +1007,9 @@ with st.spinner("🛰️ Fetching 10m high-res imagery from Sentinel Hub..."):
             <hr style='margin: 15px 0; border: none; border-top: 1px solid #eee;'>
             <div style='display:flex; justify-content:space-between; align-items:flex-start; flex-wrap: wrap;'>
                 <div style='flex: 2; min-width: 300px;'>
-                    <p style='margin-bottom: 5px; font-weight: bold; color: #7f8c8d; text-transform: uppercase; font-size: 0.8em;'>Detected Condition</p>
+                    <p style='margin-bottom: 5px; font-weight: bold; color: #7f8c8d; text-transform: uppercase; font-size: 0.8em;'>
+                        Detected Condition {f"(AI Confidence: {ai_conf*100:.1f}%)" if ai_conf > 0 else ""}
+                    </p>
                     <p style='color:#e74c3c; font-size:1.6em; font-weight: bold; margin-bottom: 20px;'>{ai_diagnosis}</p>
                     <p style='margin-bottom: 10px; font-weight: bold; color: #2c3e50;'>✨ AI Recommended Cure / Action Plan:</p>
                     <div style='background:#f4f9f4; padding:20px; border-radius:12px; border:1px solid #e0ede0; color: #2d3436; line-height: 1.6;'>
