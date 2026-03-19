@@ -58,6 +58,14 @@ def init_db():
         )
     ''')
     conn.commit()
+    
+    # Check if google_id column exists in users table, add if missing
+    c.execute("PRAGMA table_info(users)")
+    columns = [col[1] for col in c.fetchall()]
+    if 'google_id' not in columns:
+        c.execute("ALTER TABLE users ADD COLUMN google_id TEXT")
+        conn.commit()
+        
     conn.close()
 
 def create_user(email, password):
