@@ -610,6 +610,7 @@ if not st.session_state.farm_confirmed:
                     idx = [f"{f[0]} ({f[4]})" for f in saved_farms].index(farm_to_load)
                     f_name, f_lat, f_lon, f_bound, f_time = saved_farms[idx]
                     st.session_state.farm_boundary = json.loads(f_bound)
+                    st.session_state.pdf_farm_name = f_name # Store for records
                     st.session_state.farm_confirmed = True
                     st.success(f"Loaded {f_name} successfully!")
                     st.rerun()
@@ -662,6 +663,7 @@ if not st.session_state.farm_confirmed:
                 # Save to Database as a permanent record
                 try:
                     farm_name = f"Managed Land {len(saved_farms) + 1}"
+                    st.session_state.pdf_farm_name = farm_name
                     center_lat = sum([p[0] for p in drawn_boundary]) / len(drawn_boundary)
                     center_lon = sum([p[1] for p in drawn_boundary]) / len(drawn_boundary)
                     auth.save_farm(st.session_state.user_email, farm_name, center_lat, center_lon, drawn_boundary)
@@ -764,6 +766,22 @@ with st.spinner("🛰️ Fetching 10m high-res imagery from Sentinel Hub..."):
         zones_df = find_zones(health_array)
         farmer_tips = generate_tips(overall_score, zones_df)
 
+        # --- Save Analysis and Compute Delta ---
+        farm_name_for_hist = st.session_state.get('pdf_farm_name', 'Unnamed Farm')
+        history = auth.get_analysis_history(st.session_state.user_email, farm_name_for_hist)
+        
+        health_delta = 0
+        if history:
+            prev_score = history[-1][0]
+            health_delta = overall_score - prev_score
+            
+        # Record this analysis (if not already recorded in this specific session run to avoid duplicates on reruns)
+        if 'last_recorded_score' not in st.session_state or st.session_state.last_recorded_score != overall_score:
+            auth.save_analysis_record(st.session_state.user_email, farm_name_for_hist, overall_score)
+            st.session_state.last_recorded_score = overall_score
+            # Refresh history for chart
+            history = auth.get_analysis_history(st.session_state.user_email, farm_name_for_hist)
+
         # --- AI Disease Diagnosis ---
         ai_diagnosis, ai_cure = get_ai_diagnosis(selected_crop, overall_score, zones_df)
 
@@ -783,8 +801,8 @@ with st.spinner("🛰️ Fetching 10m high-res imagery from Sentinel Hub..."):
                 <div style='flex: 1; min-width: 150px; text-align:center; background:#f8f9fa; padding:25px; border-radius:20px; margin-left:20px; display: flex; flex-direction: column; justify-content: center;'>
                      <p style='margin:0; font-size:0.9em; font-weight: bold; color: #95a5a6;'>CROP HEALTH SCORE</p>
                      <h1 style='margin:10px 0; font-size:4.5em; color:{"#e74c3c" if overall_score < 40 else "#f1c40f" if overall_score < 70 else "#2ecc71"}; font-family: "Outfit", sans-serif;'>{overall_score}</h1>
-                     <p style='margin:0; font-size:0.9em; color:{"#e74c3c" if overall_score < 40 else "#27ae60"}; font-weight: bold;'>
-                        {"↑ +12% improvement" if overall_score > 50 else "↓ -5% decline"}
+                     <p style='margin:0; font-size:0.9em; color:{"#2ecc71" if health_delta >= 0 else "#e74c3c"}; font-weight: bold;'>
+                        {f"↑ +{health_delta}% improvement" if health_delta >= 0 else f"↓ {health_delta}% decline"}
                      </p>
                 </div>
             </div>
@@ -883,6 +901,25 @@ with st.spinner("🛰️ Fetching 10m high-res imagery from Sentinel Hub..."):
             st.warning(f"Map rendering issue: {str(e)}")
 
         # --- Regional Crop Health Guide (Expanded Table) ---
+        st.markdown("---")
+        
+        hist_col1, hist_col2 = st.columns([2, 1])
+        with hist_col1:
+            st.markdown(f"### 📈 Health Trends: {farm_name_for_hist}")
+            if len(history) > 1:
+                hist_df = pd.DataFrame(history, columns=["Score", "Date"])
+                hist_df["Date"] = pd.to_datetime(hist_df["Date"]).dt.strftime("%b %d, %H:%M")
+                st.line_chart(hist_df.set_index("Date")["Score"], color="#7bb284")
+            else:
+                st.info("Continuous monitoring will generate a health trend chart here. Perform more scans to see progress!")
+        
+        with hist_col2:
+            st.markdown("### 📊 Summary Statistics")
+            st.metric("Latest Health", f"{overall_score}%", f"{health_delta}%" if history else None)
+            if history:
+                avg_score = int(sum([h[0] for h in history]) / len(history))
+                st.metric("Historical Avg", f"{avg_score}%")
+
         st.markdown("---")
         st.markdown("### 🗺️ Regional Crop Health Guide (Kuttanad, Kerala)")
         st.markdown(f"Based on your farm location at **({farm_lat:.4f}, {farm_lon:.4f})**, here are all common regional crops, their frequent diseases, and potential cures.")

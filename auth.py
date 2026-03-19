@@ -36,6 +36,16 @@ def init_db():
             FOREIGN KEY (email) REFERENCES users (email)
         )
     ''')
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS analysis_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT,
+            farm_name TEXT,
+            health_score INTEGER,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (email) REFERENCES users (email)
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -80,3 +90,24 @@ def get_user_farms(email):
     farms = c.fetchall()
     conn.close()
     return farms
+
+def save_analysis_record(email, farm_name, score):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''
+        INSERT INTO analysis_history (email, farm_name, health_score)
+        VALUES (?, ?, ?)
+    ''', (email, farm_name, score))
+    conn.commit()
+    conn.close()
+
+def get_analysis_history(email, farm_name=None):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    if farm_name:
+        c.execute('SELECT health_score, timestamp FROM analysis_history WHERE email = ? AND farm_name = ? ORDER BY timestamp ASC', (email, farm_name))
+    else:
+        c.execute('SELECT health_score, timestamp FROM analysis_history WHERE email = ? ORDER BY timestamp ASC', (email,))
+    history = c.fetchall()
+    conn.close()
+    return history
