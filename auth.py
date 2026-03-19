@@ -21,7 +21,7 @@ def init_db():
     c.execute('''
         CREATE TABLE IF NOT EXISTS users (
             email TEXT PRIMARY KEY,
-            password TEXT,
+            password TEXT, -- Can be NULL for Google users
             google_id TEXT
         )
     ''')
@@ -87,8 +87,9 @@ def login_user(email, password):
     c.execute('SELECT password FROM users WHERE email = ?', (email,))
     user = c.fetchone()
     conn.close()
-    if user and _verify_password(user[0], password):
-        return True
+    # Check if user has a password (it might be None for Google users)
+    if user and user[0] is not None:
+        return _verify_password(user[0], password)
     return False
 
 def save_farm(email, farm_name, lat, lon, boundary):
