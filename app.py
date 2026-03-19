@@ -387,9 +387,14 @@ def get_ai_diagnosis(crop_type, overall_score, zones_df, ai_label=None, ai_confi
         return f"{display_label} (AI Verified)", cure
 
     # 2. Fallback to VARI-based rule matching if AI confidence is low
-    severities = zones_df['Severity'].tolist()
-    has_severe = "Severe Stress" in severities
-    has_moderate = "Moderate Stress" in severities
+    if zones_df is not None:
+        severities = zones_df['Severity'].tolist()
+        has_severe = "Severe Stress" in severities
+        has_moderate = "Moderate Stress" in severities
+    else:
+        # Chatbot/Close-up fallback if no zones exist
+        has_severe = overall_score < 40
+        has_moderate = overall_score < 70
     
     # Diagnosis Logic based on Crop Type and Stress
     diagnosis_map = {
